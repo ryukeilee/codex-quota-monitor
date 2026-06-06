@@ -2,7 +2,7 @@
 
 Codex Monitor is a privacy-first, local macOS menu bar app for tracking Codex usage and quota status.
 
-[中文版说明](./read-zh.md)
+[中文版说明](./readme-zh.md)
 
 ## Highlights
 
@@ -77,4 +77,4 @@ The fallback snapshot format is intentionally simple:
 
 ## Chinese Docs
 
-For the full Chinese version, see [read-zh.md](./read-zh.md).
+For the full Chinese version, see [readme-zh.md](./readme-zh.md).

@@ -75,6 +75,12 @@ The fallback snapshot format is intentionally simple:
 - Runtime data and logs are kept out of version control
 - Local artifacts under `data/`, `logs/`, `.playwright-mcp/`, and other generated files are intended to remain untracked
 
+## Development Rules
+
+This project is optimized for AI-assisted development with Codex and GPT Projects.
+
+The core development rules live in [agents.md](./agents.md). Keep implementations local-first, privacy-first, low-frequency, aligned with the native macOS menubar style, and focused on long-term stability.
+
 ## Chinese Documentation
 
 For the full Chinese version, see [readme-zh.md](./readme-zh.md).

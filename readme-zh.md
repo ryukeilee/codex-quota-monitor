@@ -75,6 +75,12 @@ npm start
 - 运行时数据和日志不会纳入版本控制
 - `data/`、`logs/`、`.playwright-mcp/` 等本地生成内容都应保持未跟踪状态
 
+## 开发规范
+
+本项目针对 Codex 和 GPT Projects 的 AI 协同开发进行了优化。
+
+核心开发规范位于 [agents.md](./agents.md)。所有实现都应保持本地优先、隐私优先、低频刷新、原生 macOS 菜单栏风格，并优先保证长期稳定维护。
+
 ## English Documentation
 
 英文版请见 [README.md](./README.md)。

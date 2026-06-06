@@ -1,7 +1,8 @@
 import * as echarts from 'echarts';
 import { formatUsageDetail } from '../utils/format-usage.js';
 
-const chart = echarts.init(document.getElementById('history-chart'));
+const chartElement = document.getElementById('history-chart');
+const chart = chartElement ? echarts.init(chartElement) : null;
 
 const elements = {
   refreshButton: document.getElementById('refresh-button'),
@@ -51,6 +52,10 @@ function formatTime(value) {
 }
 
 function renderHistory(history) {
+  if (!chart) {
+    return;
+  }
+
   chart.setOption({
     animation: false,
     grid: {
@@ -112,6 +117,10 @@ function renderRecords(records) {
 }
 
 function renderDashboard(dashboard) {
+  if (!dashboard?.summary) {
+    return;
+  }
+
   elements.remainingPercent.textContent = `${dashboard.summary.remainingPercent}%`;
   elements.remainingDetail.textContent = `当前窗口 ${formatUsageDetail(dashboard.summary)}`;
   elements.remainingPercentInline.textContent = `${dashboard.summary.remainingPercent}%`;
@@ -177,11 +186,21 @@ elements.preferencesForm.addEventListener('submit', async (event) => {
 });
 
 window.codexMonitor.onDashboardUpdated((dashboard) => {
-  renderDashboard(dashboard);
+  try {
+    renderDashboard(dashboard);
+  } catch (error) {
+    console.error('renderDashboard failed', error);
+  }
 });
 
 const initialDashboard = await window.codexMonitor.loadDashboard();
-renderDashboard(initialDashboard);
+if (initialDashboard) {
+  try {
+    renderDashboard(initialDashboard);
+  } catch (error) {
+    console.error('initial render failed', error);
+  }
+}
 
 window.addEventListener('resize', () => {
   chart.resize();

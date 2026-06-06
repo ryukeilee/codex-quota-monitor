@@ -32,6 +32,10 @@ const elements = {
 };
 
 function renderDashboard(dashboard) {
+  if (!dashboard?.summary) {
+    return;
+  }
+
   elements.remainingPercent.textContent = `${dashboard.summary.remainingPercent}%`;
   elements.windowState.textContent = dashboard.summary.windowState === 'near_limit' ? '接近额度墙' : '状态健康';
   elements.used.textContent = formatUsageDetail(dashboard.summary);
@@ -53,8 +57,18 @@ function renderDashboard(dashboard) {
 }
 
 window.codexMonitor.onDashboardUpdated((dashboard) => {
-  renderDashboard(dashboard);
+  try {
+    renderDashboard(dashboard);
+  } catch (error) {
+    console.error('mini panel render failed', error);
+  }
 });
 
 const initialDashboard = await window.codexMonitor.loadDashboard();
-renderDashboard(initialDashboard);
+if (initialDashboard) {
+  try {
+    renderDashboard(initialDashboard);
+  } catch (error) {
+    console.error('mini panel initial render failed', error);
+  }
+}

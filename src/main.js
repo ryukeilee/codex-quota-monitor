@@ -295,6 +295,25 @@ function pushDashboardToWindows(dashboard) {
   }
 }
 
+function syncDashboardWhenReady(window, dashboard) {
+  if (!window || window.isDestroyed()) {
+    return;
+  }
+
+  const sendDashboard = () => {
+    if (!window.isDestroyed()) {
+      window.webContents.send('dashboard:updated', dashboard);
+    }
+  };
+
+  if (window.webContents.isLoadingMainFrame()) {
+    window.webContents.once('did-finish-load', sendDashboard);
+    return;
+  }
+
+  sendDashboard();
+}
+
 function showNotification(payload) {
   if (!Notification.isSupported()) {
     return;
@@ -342,7 +361,8 @@ async function bootstrap() {
   await createMainWindow();
   await createMiniPanelWindow();
   updateTray(dashboard);
-  pushDashboardToWindows(dashboard);
+  syncDashboardWhenReady(mainWindow, dashboard);
+  syncDashboardWhenReady(miniPanelWindow, dashboard);
   applyCloseToMenuBarBehavior(dashboard);
   await applyPresentationMode(dashboard.preferences);
   if (!dashboard.preferences.pureMenuBarMode && !getSystemPreferences().wasOpenedAtLogin) {

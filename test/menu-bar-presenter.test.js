@@ -44,7 +44,7 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   assert.equal(state.lines.recoveryLabel, '预计恢复 06/06 18:30');
 });
 
-test('buildMenuBarState adds warning symbol and ANSI color when quota is near limit', () => {
+test('buildMenuBarState keeps the tray title as a plain percentage when quota is near limit', () => {
   const state = buildMenuBarState({
     refreshedAt: '2026-06-06T10:12:00.000Z',
     summary: {
@@ -74,7 +74,7 @@ test('buildMenuBarState adds warning symbol and ANSI color when quota is near li
     refreshInterval: 15000
   });
 
-  assert.equal(state.title, '⚠ 12%');
+  assert.equal(state.title, '12%');
   assert.equal(state.lines.statusLabel, '状态: 接近额度墙');
 });
 

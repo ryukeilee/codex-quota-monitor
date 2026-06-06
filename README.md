@@ -63,9 +63,8 @@ The fallback snapshot format is intentionally simple:
 
 ## System Tray
 
-- Displays the current 5-hour remaining percentage in the menu bar title
+- Displays the current 5-hour remaining percentage in the menu bar title as a plain native-style percentage
 - Displays the weekly remaining percentage in the tray menu
-- Shows a warning symbol when the 5-hour window is close to the limit
 - Lets you toggle the main window, mini panel, notifications, and menu bar display
 
 ## Privacy and Storage

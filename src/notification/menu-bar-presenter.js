@@ -22,12 +22,7 @@ function formatTrayTitle(summary, preferences) {
     return '';
   }
 
-  const baseTitle = `${summary.remainingPercent}%`;
-  if (summary.windowState !== 'near_limit') {
-    return baseTitle;
-  }
-
-  return `⚠ ${baseTitle}`;
+  return `${summary.remainingPercent}%`;
 }
 
 export function formatRefreshLabel(intervalMs) {

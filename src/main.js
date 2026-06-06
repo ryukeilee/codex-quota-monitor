@@ -76,7 +76,7 @@ async function createMainWindow() {
     backgroundColor: '#f5f0e8',
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.cjs')
     }
   });
 
@@ -101,7 +101,7 @@ async function createMiniPanelWindow() {
     movable: true,
     backgroundColor: '#f5f0e8',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.cjs')
     }
   });
 
@@ -214,7 +214,7 @@ function updateTray(dashboard) {
 
   const menuBarState = buildMenuBarState(dashboard);
   tray.setImage(createTrayIcon());
-  tray.setTitle(menuBarState.title);
+  tray.setTitle(menuBarState.title, { fontType: 'monospacedDigit' });
   tray.setToolTip(menuBarState.toolTip);
   tray.setContextMenu(Menu.buildFromTemplate([
     {

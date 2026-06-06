@@ -4,7 +4,7 @@ export function formatUsageDetail(summary) {
   }
 
   if (summary.presentation === 'percent') {
-    return `${summary.used}%`;
+    return `${summary.remainingPercent}%`;
   }
 
   return `${summary.used}/${summary.limit}`;

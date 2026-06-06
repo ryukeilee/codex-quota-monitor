@@ -14,6 +14,7 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
       remaining: 64,
       used: 36,
       limit: 100,
+      presentation: 'percent',
       windowState: 'healthy',
       nextRecoveryAt: '2026-06-06T10:30:00.000Z'
     },
@@ -37,7 +38,7 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   assert.equal(state.title, '64%');
   assert.equal(state.toolTip, 'Codex Monitor: 5 小时剩余 64%');
   assert.equal(state.lines.remainingLabel, '剩余 64%');
-  assert.equal(state.lines.windowLabel, '5 小时窗口 36/100');
+  assert.equal(state.lines.windowLabel, '5 小时窗口 64%');
   assert.equal(state.lines.predictionLabel, '预计还能开发 5 小时');
   assert.equal(state.lines.recoveryLabel, '预计恢复 06/06 18:30');
 });
@@ -50,6 +51,7 @@ test('buildMenuBarState adds warning symbol and ANSI color when quota is near li
       remaining: 12,
       used: 88,
       limit: 100,
+      presentation: 'percent',
       windowState: 'near_limit',
       nextRecoveryAt: null
     },
@@ -83,6 +85,7 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
       remaining: 12,
       used: 88,
       limit: 100,
+      presentation: 'percent',
       windowState: 'near_limit',
       nextRecoveryAt: null
     },

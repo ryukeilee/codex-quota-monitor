@@ -35,6 +35,38 @@ function createTrayIcon() {
   return image;
 }
 
+function attachWebContentsDiagnostics(window, name) {
+  if (!window) {
+    return;
+  }
+
+  window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    logger.info({
+      name,
+      level,
+      message,
+      line,
+      sourceId
+    }, 'renderer console message');
+  });
+
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    logger.error({
+      name,
+      errorCode,
+      errorDescription,
+      validatedURL
+    }, 'renderer failed to load');
+  });
+
+  window.webContents.on('render-process-gone', (_event, details) => {
+    logger.error({
+      name,
+      ...details
+    }, 'renderer process gone');
+  });
+}
+
 async function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -48,13 +80,16 @@ async function createMainWindow() {
     }
   });
 
+  attachWebContentsDiagnostics(mainWindow, 'main');
   await mainWindow.loadFile(path.join(__dirname, 'ui', 'index.html'));
 }
 
 async function createMiniPanelWindow() {
   miniPanelWindow = new BrowserWindow({
-    width: 320,
-    height: 280,
+    width: 360,
+    height: 440,
+    minWidth: 340,
+    minHeight: 400,
     resizable: false,
     maximizable: false,
     minimizable: false,
@@ -70,6 +105,7 @@ async function createMiniPanelWindow() {
     }
   });
 
+  attachWebContentsDiagnostics(miniPanelWindow, 'mini');
   await miniPanelWindow.loadFile(path.join(__dirname, 'ui', 'mini-panel.html'));
   miniPanelWindow.on('blur', () => {
     if (miniPanelWindow && !miniPanelWindow.isDestroyed()) {

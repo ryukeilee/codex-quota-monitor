@@ -1,8 +1,14 @@
-import * as echarts from 'echarts';
 import { formatUsageDetail } from '../utils/format-usage.js';
 
+let echarts = null;
+try {
+  echarts = await import('../../node_modules/echarts/dist/echarts.esm.min.mjs');
+} catch (error) {
+  console.warn('ECharts unavailable, skipping history chart', error);
+}
+
 const chartElement = document.getElementById('history-chart');
-const chart = chartElement ? echarts.init(chartElement) : null;
+const chart = echarts && chartElement ? echarts.init(chartElement) : null;
 
 const elements = {
   refreshButton: document.getElementById('refresh-button'),
@@ -193,15 +199,18 @@ window.codexMonitor.onDashboardUpdated((dashboard) => {
   }
 });
 
-const initialDashboard = await window.codexMonitor.loadDashboard();
-if (initialDashboard) {
+const initialDashboard = await window.codexMonitor.loadDashboard().catch(() => null);
+const dashboardToRender = initialDashboard ?? await window.codexMonitor.refreshDashboard().catch(() => null);
+if (dashboardToRender) {
   try {
-    renderDashboard(initialDashboard);
+    renderDashboard(dashboardToRender);
   } catch (error) {
     console.error('initial render failed', error);
   }
 }
 
 window.addEventListener('resize', () => {
-  chart.resize();
+  if (chart) {
+    chart.resize();
+  }
 });

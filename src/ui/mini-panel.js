@@ -64,10 +64,11 @@ window.codexMonitor.onDashboardUpdated((dashboard) => {
   }
 });
 
-const initialDashboard = await window.codexMonitor.loadDashboard();
-if (initialDashboard) {
+const initialDashboard = await window.codexMonitor.loadDashboard().catch(() => null);
+const dashboardToRender = initialDashboard ?? await window.codexMonitor.refreshDashboard().catch(() => null);
+if (dashboardToRender) {
   try {
-    renderDashboard(initialDashboard);
+    renderDashboard(dashboardToRender);
   } catch (error) {
     console.error('mini panel initial render failed', error);
   }

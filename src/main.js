@@ -286,6 +286,15 @@ function updateTray(dashboard) {
   ]));
 }
 
+function pushDashboardToWindows(dashboard) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('dashboard:updated', dashboard);
+  }
+  if (miniPanelWindow && !miniPanelWindow.isDestroyed()) {
+    miniPanelWindow.webContents.send('dashboard:updated', dashboard);
+  }
+}
+
 function showNotification(payload) {
   if (!Notification.isSupported()) {
     return;
@@ -305,12 +314,7 @@ async function bootstrap() {
       updateTray(dashboard);
       applyCloseToMenuBarBehavior(dashboard);
       applyPresentationMode(dashboard.preferences);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('dashboard:updated', dashboard);
-      }
-      if (miniPanelWindow && !miniPanelWindow.isDestroyed()) {
-        miniPanelWindow.webContents.send('dashboard:updated', dashboard);
-      }
+      pushDashboardToWindows(dashboard);
     },
     onNotify: showNotification,
     logger,
@@ -338,6 +342,7 @@ async function bootstrap() {
   await createMainWindow();
   await createMiniPanelWindow();
   updateTray(dashboard);
+  pushDashboardToWindows(dashboard);
   applyCloseToMenuBarBehavior(dashboard);
   await applyPresentationMode(dashboard.preferences);
   if (!dashboard.preferences.pureMenuBarMode && !getSystemPreferences().wasOpenedAtLogin) {

@@ -19,9 +19,10 @@ const elements = {
   recoveryDetail: document.getElementById('recovery-detail'),
   recoveryTimeInline: document.getElementById('recovery-time-inline'),
   liveSourceLabel: document.getElementById('live-source-label'),
+  liveSourceLabelTop: document.getElementById('live-source-label-top'),
   flowHours: document.getElementById('flow-hours'),
   flowDetail: document.getElementById('flow-detail'),
-  sourceLabel: document.getElementById('source-label'),
+  trendSourceLabel: document.getElementById('trend-source-label'),
   recommendationText: document.getElementById('recommendation-text'),
   recordList: document.getElementById('record-list'),
   preferencesForm: document.getElementById('preferences-form'),
@@ -132,12 +133,13 @@ function renderDashboard(dashboard) {
     : '暂无待恢复记录';
   elements.recoveryTimeInline.textContent = formatTime(dashboard.summary.nextRecoveryAt);
   elements.liveSourceLabel.textContent = dashboard.source.label;
+  elements.liveSourceLabelTop.textContent = dashboard.source.label;
   elements.flowHours.textContent = Number.isFinite(dashboard.prediction.hoursRemaining)
     ? `${dashboard.prediction.hoursRemaining} 小时`
     : '充足';
   elements.flowDetail.textContent = `当前建议：${dashboard.prediction.recommendedIntensity}`;
   elements.refreshMeta.textContent = `最近刷新 ${formatTime(dashboard.refreshedAt)}`;
-  elements.sourceLabel.textContent = `数据源：${dashboard.source.label}`;
+  elements.trendSourceLabel.textContent = `数据源：${dashboard.source.label}`;
   elements.recommendationText.textContent = dashboard.prediction.recommendation;
   elements.isActive.checked = dashboard.preferences.isActive;
   elements.isHighIntensity.checked = dashboard.preferences.isHighIntensity;

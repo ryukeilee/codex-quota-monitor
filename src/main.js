@@ -205,10 +205,6 @@ function updateTray(dashboard) {
       label: menuBarState.lines.recoveryLabel,
       enabled: false
     },
-    {
-      label: menuBarState.lines.refreshLabel,
-      enabled: false
-    },
     { type: 'separator' },
     {
       label: dashboard.preferences.closeToMenuBar ? '显示 / 隐藏主窗口' : '显示主窗口',

@@ -8,12 +8,17 @@ const elements = {
   refreshMeta: document.getElementById('refresh-meta'),
   remainingPercent: document.getElementById('remaining-percent'),
   remainingDetail: document.getElementById('remaining-detail'),
+  remainingPercentInline: document.getElementById('remaining-percent-inline'),
   weeklyPercent: document.getElementById('weekly-percent'),
   weeklyDetail: document.getElementById('weekly-detail'),
+  weeklyPercentInline: document.getElementById('weekly-percent-inline'),
   windowState: document.getElementById('window-state'),
   windowDetail: document.getElementById('window-detail'),
+  windowStateInline: document.getElementById('window-state-inline'),
   recoveryTime: document.getElementById('recovery-time'),
   recoveryDetail: document.getElementById('recovery-detail'),
+  recoveryTimeInline: document.getElementById('recovery-time-inline'),
+  liveSourceLabel: document.getElementById('live-source-label'),
   flowHours: document.getElementById('flow-hours'),
   flowDetail: document.getElementById('flow-detail'),
   sourceLabel: document.getElementById('source-label'),
@@ -108,18 +113,25 @@ function renderRecords(records) {
 function renderDashboard(dashboard) {
   elements.remainingPercent.textContent = `${dashboard.summary.remainingPercent}%`;
   elements.remainingDetail.textContent = `当前窗口 ${formatUsageDetail(dashboard.summary)}`;
+  elements.remainingPercentInline.textContent = `${dashboard.summary.remainingPercent}%`;
   elements.weeklyPercent.textContent = dashboard.weeklySummary
     ? `${dashboard.weeklySummary.remainingPercent}%`
     : '--';
   elements.weeklyDetail.textContent = dashboard.weeklySummary
     ? `近 7 天 ${formatUsageDetail(dashboard.weeklySummary)}`
     : '暂无周数据';
+  elements.weeklyPercentInline.textContent = dashboard.weeklySummary
+    ? `${dashboard.weeklySummary.remainingPercent}%`
+    : '--';
   elements.windowState.textContent = dashboard.summary.windowState === 'near_limit' ? '接近额度墙' : '状态健康';
   elements.windowDetail.textContent = `${dashboard.summary.windowUsageCount} 条窗口内记录`;
+  elements.windowStateInline.textContent = dashboard.summary.windowState === 'near_limit' ? '接近额度墙' : '状态健康';
   elements.recoveryTime.textContent = formatTime(dashboard.summary.nextRecoveryAt);
   elements.recoveryDetail.textContent = dashboard.summary.nextRecoveryAt
     ? '按照最早一笔窗口内消耗估算'
     : '暂无待恢复记录';
+  elements.recoveryTimeInline.textContent = formatTime(dashboard.summary.nextRecoveryAt);
+  elements.liveSourceLabel.textContent = dashboard.source.label;
   elements.flowHours.textContent = Number.isFinite(dashboard.prediction.hoursRemaining)
     ? `${dashboard.prediction.hoursRemaining} 小时`
     : '充足';

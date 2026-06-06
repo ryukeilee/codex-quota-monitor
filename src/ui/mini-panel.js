@@ -27,6 +27,7 @@ const elements = {
   recovery: document.getElementById('mini-recovery'),
   flow: document.getElementById('mini-flow'),
   refresh: document.getElementById('mini-refresh'),
+  meta: document.getElementById('mini-meta'),
   recommendation: document.getElementById('mini-recommendation')
 };
 
@@ -42,6 +43,12 @@ function renderDashboard(dashboard) {
     ? `${dashboard.prediction.hoursRemaining} 小时`
     : '充足';
   elements.refresh.textContent = formatRefreshLabel(dashboard.refreshInterval);
+  elements.meta.textContent = `${dashboard.source.label} · 最近刷新 ${new Date(dashboard.refreshedAt).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })}`;
   elements.recommendation.textContent = dashboard.prediction.recommendation;
 }
 

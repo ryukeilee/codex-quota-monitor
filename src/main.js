@@ -182,10 +182,6 @@ function updateTray(dashboard) {
   tray.setToolTip(menuBarState.toolTip);
   tray.setContextMenu(Menu.buildFromTemplate([
     {
-      label: menuBarState.lines.remainingLabel,
-      enabled: false
-    },
-    {
       label: menuBarState.lines.windowLabel,
       enabled: false
     },

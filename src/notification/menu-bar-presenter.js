@@ -40,6 +40,9 @@ export function formatRefreshLabel(intervalMs) {
 
 export function buildMenuBarState(dashboard) {
   const remainingPercent = dashboard.summary.remainingPercent;
+  const weeklyRemainingPercent = dashboard.weeklySummary
+    ? `${dashboard.weeklySummary.remainingPercent}%`
+    : '暂无';
   const hoursRemaining = Number.isFinite(dashboard.prediction.hoursRemaining)
     ? `${dashboard.prediction.hoursRemaining} 小时`
     : '充足';
@@ -50,6 +53,7 @@ export function buildMenuBarState(dashboard) {
     lines: {
       remainingLabel: `剩余 ${remainingPercent}%`,
       windowLabel: `5 小时窗口 ${formatUsageDetail(dashboard.summary)}`,
+      weeklyLabel: `周剩余 ${weeklyRemainingPercent}`,
       statusLabel: `状态: ${formatWindowState(dashboard.summary.windowState)}`,
       predictionLabel: `预计还能开发 ${hoursRemaining}`,
       recoveryLabel: `预计恢复 ${formatTime(dashboard.summary.nextRecoveryAt)}`,

@@ -190,6 +190,10 @@ function updateTray(dashboard) {
       enabled: false
     },
     {
+      label: menuBarState.lines.weeklyLabel,
+      enabled: false
+    },
+    {
       label: menuBarState.lines.statusLabel,
       enabled: false
     },

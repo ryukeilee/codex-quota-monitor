@@ -39,6 +39,7 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   assert.equal(state.toolTip, 'Codex Monitor: 5 小时剩余 64%');
   assert.equal(state.lines.remainingLabel, '剩余 64%');
   assert.equal(state.lines.windowLabel, '5 小时窗口 64%');
+  assert.equal(state.lines.weeklyLabel, '周剩余 87%');
   assert.equal(state.lines.predictionLabel, '预计还能开发 5 小时');
   assert.equal(state.lines.recoveryLabel, '预计恢复 06/06 18:30');
 });
@@ -109,6 +110,7 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
   assert.equal(state.title, '');
   assert.equal(state.lines.statusLabel, '状态: 接近额度墙');
   assert.equal(state.lines.recoveryLabel, '预计恢复 暂无');
+  assert.equal(state.lines.weeklyLabel, '周剩余 87%');
 });
 
 test('formatRefreshLabel returns the low-frequency refresh label', () => {

@@ -26,6 +26,12 @@ export function writeDashboardArtifact(dashboard, baseDir = process.cwd()) {
     `周已用: ${dashboard.weeklySummary ? formatUsageDetail(dashboard.weeklySummary) : '暂无'}`,
     `窗口状态: ${dashboard.summary.windowState}`,
     `预计恢复: ${formatRecovery(dashboard.summary.nextRecoveryAt)}`,
+    `刷新中: ${dashboard.isRefreshing ? '是' : '否'}`,
+    `最近成功刷新: ${formatRecovery(dashboard.lastSuccessfulRefreshAt)}`,
+    `最近开始刷新: ${formatRecovery(dashboard.lastRefreshStartedAt)}`,
+    `最近强制刷新: ${formatRecovery(dashboard.lastForcedRefreshAt)}`,
+    `是否过期: ${dashboard.isStale ? '是' : '否'}`,
+    `最近刷新错误: ${dashboard.lastRefreshError ?? '暂无'}`,
     `数据源: ${dashboard.source.label}`,
     `最近刷新: ${new Date(dashboard.refreshedAt).toLocaleString('zh-CN')}`
   ].join('\n');

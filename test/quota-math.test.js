@@ -60,8 +60,8 @@ test('summarizeUsage supports a seven day rolling window', () => {
 });
 
 test('getRefreshInterval follows the low-frequency refresh policy', () => {
-  assert.equal(getRefreshInterval({ isActive: false }), 10 * 60 * 1000);
-  assert.equal(getRefreshInterval({ isActive: true, isHighIntensity: false, remainingPercent: 50 }), 2 * 60 * 1000);
+  assert.equal(getRefreshInterval({ isActive: false }), 5 * 60 * 1000);
+  assert.equal(getRefreshInterval({ isActive: true, isHighIntensity: false, remainingPercent: 50 }), 5 * 60 * 1000);
   assert.equal(getRefreshInterval({ isActive: true, isHighIntensity: true, remainingPercent: 50 }), 30 * 1000);
   assert.equal(getRefreshInterval({ isActive: true, isHighIntensity: true, remainingPercent: 8 }), 15 * 1000);
 });

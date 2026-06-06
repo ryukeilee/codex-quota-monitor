@@ -11,6 +11,14 @@ const LEGACY_FIVE_HOUR_BUDGET = 10_000_000;
 const CALIBRATED_LOCAL_FIVE_HOUR_BUDGET = 25_071_924;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const LIVE_RATE_LIMIT_REFRESH_FLOOR_MS = 5 * 60 * 1000;
+const FORCE_DEDUPE_MS = 10_000;
+const REFRESH_STATE_DEFAULTS = {
+  isRefreshing: false,
+  lastSuccessfulRefreshAt: null,
+  lastRefreshStartedAt: null,
+  lastRefreshError: null,
+  lastForcedRefreshAt: null
+};
 const DEFAULT_PREFERENCES = {
   isActive: true,
   isHighIntensity: false,
@@ -24,6 +32,21 @@ const DEFAULT_PREFERENCES = {
   showMiniPanelOnTrayClick: true
 };
 
+function createRefreshState(overrides = {}) {
+  return {
+    ...REFRESH_STATE_DEFAULTS,
+    ...overrides
+  };
+}
+
+function computeIsStale({ lastSuccessfulRefreshAt, refreshInterval, now = new Date() }) {
+  if (!lastSuccessfulRefreshAt) {
+    return true;
+  }
+
+  return now.getTime() - new Date(lastSuccessfulRefreshAt).getTime() >= refreshInterval;
+}
+
 export async function createMonitorService({ onUpdated, onNotify, logger, getSystemPreferences, applySystemPreferences }) {
   const database = createDatabase();
   const currentCwd = process.cwd();
@@ -33,6 +56,7 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
   });
   let refreshTimer = null;
   let dashboard = null;
+  let refreshState = createRefreshState();
   let lastNotifiedState = null;
 
   function materializeUsageRecords(snapshot, now = new Date()) {
@@ -109,6 +133,48 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
     };
   }
 
+  function mergeDashboardRefreshState(currentDashboard) {
+    if (!currentDashboard) {
+      return currentDashboard;
+    }
+
+    return {
+      ...currentDashboard,
+      ...refreshState,
+      isStale: computeIsStale({
+        lastSuccessfulRefreshAt: refreshState.lastSuccessfulRefreshAt,
+        refreshInterval: currentDashboard.refreshInterval
+      })
+    };
+  }
+
+  function markRefreshStarted({ force = false } = {}) {
+    const startedAt = new Date().toISOString();
+    refreshState = createRefreshState({
+      ...refreshState,
+      isRefreshing: true,
+      lastRefreshStartedAt: startedAt,
+      lastRefreshError: null,
+      lastForcedRefreshAt: force ? startedAt : refreshState.lastForcedRefreshAt
+    });
+
+    if (dashboard) {
+      dashboard = mergeDashboardRefreshState(dashboard);
+      onUpdated(dashboard);
+    }
+
+    return startedAt;
+  }
+
+  function markRefreshFinished({ successAt = null, error = null } = {}) {
+    refreshState = createRefreshState({
+      ...refreshState,
+      isRefreshing: false,
+      lastSuccessfulRefreshAt: successAt ?? refreshState.lastSuccessfulRefreshAt,
+      lastRefreshError: error
+    });
+  }
+
   function maybeNotify(currentDashboard) {
     if (!currentDashboard.preferences.notificationsEnabled) {
       lastNotifiedState = currentDashboard.summary.windowState;
@@ -145,92 +211,154 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
       clearTimeout(refreshTimer);
     }
     refreshTimer = setTimeout(async () => {
-      await refreshNow();
+      await refreshQuota({
+        reason: 'timer',
+        force: false
+      });
     }, currentDashboard.refreshInterval);
   }
 
-  async function refreshNow() {
-    const persistedPreferences = database.getPreferences();
-    const now = new Date();
-
-    try {
-      const liveRateLimits = await readLiveRateLimits({ cwd: currentCwd });
-      const liveSnapshot = {
-        sourceLabel: liveRateLimits.sourceLabel,
-        limit: liveRateLimits.primary.limit,
-        isActive: true,
-        isHighIntensity: false,
-        records: []
-      };
-      const preferences = mergePreferences(liveSnapshot, persistedPreferences);
-      const liveRefreshInterval = Math.max(
-        getRefreshInterval({
-          isActive: preferences.isActive,
-          isHighIntensity: preferences.isHighIntensity,
-          remainingPercent: liveRateLimits.primary.remainingPercent
-        }),
-        LIVE_RATE_LIMIT_REFRESH_FLOOR_MS
-      );
-
-      database.saveSnapshot({
-        capturedAt: now.toISOString(),
-        summary: liveRateLimits.primary,
-        sourceLabel: liveRateLimits.sourceLabel
-      });
-
-      dashboard = buildDashboard(
-        liveSnapshot,
-        preferences,
-        'codex app-server account/rateLimits/read',
-        liveRateLimits.primary,
-        [],
-        {
-          weeklySummary: liveRateLimits.secondary,
-          sourceLabel: liveRateLimits.sourceLabel,
-          refreshInterval: liveRefreshInterval
-        }
-      );
-    } catch (error) {
-      logger.info({
-        error: error?.message ?? String(error)
-      }, 'live rate-limit read failed, falling back to local snapshot data');
-
-      reader = createSnapshotSourceRouter({
-        fiveHourBudget: persistedPreferences.fiveHourBudget ?? DEFAULT_PREFERENCES.fiveHourBudget,
-        cwd: currentCwd
-      });
-      const { snapshot, sourceFile } = await reader.readSnapshot();
-      const preferences = mergePreferences(snapshot, persistedPreferences);
-      const usageRecords = materializeUsageRecords(snapshot, now);
-
-      database.saveUsageRecords(usageRecords);
-      const usageHistoryStart = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
-      const storedUsageRecords = database.getUsageRecordsSince(usageHistoryStart);
-
-      const summary = summarizeUsage({
-        limit: snapshot.limit,
-        now,
-        records: storedUsageRecords
-      });
-
-      database.saveSnapshot({
-        capturedAt: now.toISOString(),
-        summary,
-        sourceLabel: snapshot.sourceLabel
-      });
-
-      dashboard = buildDashboard(snapshot, preferences, sourceFile, summary, storedUsageRecords);
+  async function refreshQuota({ reason = 'manual', force = false } = {}) {
+    if (refreshState.isRefreshing) {
+      logger.debug({
+        reason,
+        force,
+        cause: 'in-flight'
+      }, 'refresh skipped');
+      return dashboard;
     }
 
-    writeDashboardArtifact(dashboard);
-    scheduleNextRefresh(dashboard);
-    maybeNotify(dashboard);
-    onUpdated(dashboard);
-    logger.info({
-      remainingPercent: dashboard.summary.remainingPercent,
-      sourceLabel: dashboard.source.label
-    }, 'dashboard refreshed');
-    return dashboard;
+    if (force && refreshState.lastForcedRefreshAt) {
+      const elapsedMs = Date.now() - new Date(refreshState.lastForcedRefreshAt).getTime();
+      if (elapsedMs < FORCE_DEDUPE_MS && dashboard) {
+        logger.debug({
+          reason,
+          force,
+          cause: 'forced-deduped',
+          elapsedMs
+        }, 'refresh skipped');
+        return dashboard;
+      }
+    }
+
+    logger.debug({
+      reason,
+      force
+    }, 'refresh start');
+
+    markRefreshStarted({ force });
+    const persistedPreferences = database.getPreferences();
+    const now = new Date();
+    let refreshError = null;
+
+    try {
+      try {
+        const liveRateLimits = await readLiveRateLimits({ cwd: currentCwd });
+        const liveSnapshot = {
+          sourceLabel: liveRateLimits.sourceLabel,
+          limit: liveRateLimits.primary.limit,
+          isActive: true,
+          isHighIntensity: false,
+          records: []
+        };
+        const preferences = mergePreferences(liveSnapshot, persistedPreferences);
+        const liveRefreshInterval = Math.max(
+          getRefreshInterval({
+            isActive: preferences.isActive,
+            isHighIntensity: preferences.isHighIntensity,
+            remainingPercent: liveRateLimits.primary.remainingPercent
+          }),
+          LIVE_RATE_LIMIT_REFRESH_FLOOR_MS
+        );
+
+        database.saveSnapshot({
+          capturedAt: now.toISOString(),
+          summary: liveRateLimits.primary,
+          sourceLabel: liveRateLimits.sourceLabel
+        });
+
+        dashboard = buildDashboard(
+          liveSnapshot,
+          preferences,
+          'codex app-server account/rateLimits/read',
+          liveRateLimits.primary,
+          [],
+          {
+            weeklySummary: liveRateLimits.secondary,
+            sourceLabel: liveRateLimits.sourceLabel,
+            refreshInterval: liveRefreshInterval
+          }
+        );
+      } catch (error) {
+        refreshError = error?.message ?? String(error);
+        logger.info({
+          error: refreshError
+        }, 'live rate-limit read failed, falling back to local snapshot data');
+
+        reader = createSnapshotSourceRouter({
+          fiveHourBudget: persistedPreferences.fiveHourBudget ?? DEFAULT_PREFERENCES.fiveHourBudget,
+          cwd: currentCwd
+        });
+        const { snapshot, sourceFile } = await reader.readSnapshot();
+        const preferences = mergePreferences(snapshot, persistedPreferences);
+        const usageRecords = materializeUsageRecords(snapshot, now);
+
+        database.saveUsageRecords(usageRecords);
+        const usageHistoryStart = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
+        const storedUsageRecords = database.getUsageRecordsSince(usageHistoryStart);
+
+        const summary = summarizeUsage({
+          limit: snapshot.limit,
+          now,
+          records: storedUsageRecords
+        });
+
+        database.saveSnapshot({
+          capturedAt: now.toISOString(),
+          summary,
+          sourceLabel: snapshot.sourceLabel
+        });
+
+        dashboard = buildDashboard(snapshot, preferences, sourceFile, summary, storedUsageRecords);
+      }
+
+      if (!dashboard) {
+        throw new Error(refreshError ?? 'dashboard refresh failed');
+      }
+
+      markRefreshFinished({
+        successAt: dashboard.refreshedAt,
+        error: refreshError
+      });
+      dashboard = mergeDashboardRefreshState(dashboard);
+      writeDashboardArtifact(dashboard);
+      scheduleNextRefresh(dashboard);
+      maybeNotify(dashboard);
+      onUpdated(dashboard);
+      logger.debug({
+        reason,
+        force,
+        remainingPercent: dashboard.summary.remainingPercent,
+        sourceLabel: dashboard.source.label
+      }, 'refresh success');
+      return dashboard;
+    } catch (error) {
+      const errorMessage = error?.message ?? String(error);
+      markRefreshFinished({
+        error: errorMessage
+      });
+      if (dashboard) {
+        dashboard = mergeDashboardRefreshState(dashboard);
+        writeDashboardArtifact(dashboard);
+        onUpdated(dashboard);
+      }
+      logger.error({
+        reason,
+        force,
+        error: errorMessage
+      }, 'refresh failed');
+      throw error;
+    }
   }
 
   return {
@@ -257,13 +385,22 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
         ...persistedPreferences
       }, getSystemPreferences ? getSystemPreferences() : {});
       database.upsertPreferences(mergedDefaults);
-      return refreshNow();
+      return refreshQuota({
+        reason: 'startup',
+        force: true
+      });
     },
     getDashboard() {
       return dashboard;
     },
+    async refreshQuota(options = {}) {
+      return refreshQuota(options);
+    },
     async refreshNow() {
-      return refreshNow();
+      return refreshQuota({
+        reason: 'manual',
+        force: true
+      });
     },
     async updatePreferences(preferences) {
       const nextPreferences = {
@@ -279,7 +416,10 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
           ...nextPreferences
         });
       }
-      return refreshNow();
+      return refreshQuota({
+        reason: 'preferences',
+        force: true
+      });
     },
     async dispose() {
       if (refreshTimer) {

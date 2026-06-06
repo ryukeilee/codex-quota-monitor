@@ -1,5 +1,6 @@
 const WINDOW_MS = 5 * 60 * 60 * 1000;
 const NEAR_LIMIT_PERCENT = 15;
+const NORMAL_REFRESH_MS = 5 * 60_000;
 
 function toTimestamp(value) {
   return value instanceof Date ? value.getTime() : new Date(value).getTime();
@@ -40,7 +41,7 @@ export function getRefreshInterval({
   remainingPercent = 100
 }) {
   if (!isActive) {
-    return 10 * 60 * 1000;
+    return NORMAL_REFRESH_MS;
   }
 
   if (remainingPercent <= 15) {
@@ -51,5 +52,5 @@ export function getRefreshInterval({
     return 30 * 1000;
   }
 
-  return 2 * 60 * 1000;
+  return NORMAL_REFRESH_MS;
 }

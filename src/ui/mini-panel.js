@@ -65,7 +65,10 @@ window.codexMonitor.onDashboardUpdated((dashboard) => {
 });
 
 const initialDashboard = await window.codexMonitor.loadDashboard().catch(() => null);
-const dashboardToRender = initialDashboard ?? await window.codexMonitor.refreshDashboard().catch(() => null);
+const dashboardToRender = initialDashboard ?? await window.codexMonitor.refreshQuota({
+  reason: 'panel-open',
+  force: true
+}).catch(() => null);
 if (dashboardToRender) {
   try {
     renderDashboard(dashboardToRender);

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Notification, Tray, ipcMain, nativeImage } from 'electron';
+import { app, BrowserWindow, Menu, Notification, Tray, ipcMain, nativeImage, powerMonitor } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,6 +15,22 @@ let miniPanelWindow = null;
 let tray = null;
 let monitorService = null;
 let isQuitting = false;
+let wakeRefreshTimers = [];
+
+function clearWakeRefreshTimers({ reason, cause }) {
+  if (wakeRefreshTimers.length > 0) {
+    logger.debug({
+      reason,
+      cause,
+      clearedCount: wakeRefreshTimers.length
+    }, 'wake retry cleared');
+  }
+
+  for (const timer of wakeRefreshTimers) {
+    clearTimeout(timer);
+  }
+  wakeRefreshTimers = [];
+}
 
 function createTrayIcon() {
   const svg = `
@@ -207,6 +223,48 @@ async function applySystemPreferences(preferences) {
   await applyPresentationMode(preferences);
 }
 
+function scheduleWakeRefreshSequence(reason = 'resume') {
+  clearWakeRefreshTimers({
+    reason,
+    cause: 'reschedule'
+  });
+
+  logger.debug({
+    reason,
+    delaysMs: [5, 15, 30, 60].map((seconds) => seconds * 1000)
+  }, 'wake retry scheduled');
+
+  for (const delayMs of [5, 15, 30, 60].map((seconds) => seconds * 1000)) {
+    const timer = setTimeout(async () => {
+      if (!monitorService || isQuitting) {
+        return;
+      }
+
+      const beforeDashboard = monitorService.getDashboard();
+      try {
+        const nextDashboard = await monitorService.refreshQuota({
+          reason,
+          force: true,
+        });
+        if (nextDashboard && nextDashboard !== beforeDashboard) {
+          clearWakeRefreshTimers({
+            reason,
+            cause: 'success'
+          });
+        }
+      } catch (error) {
+        logger.error({
+          reason,
+          delayMs,
+          error: error?.message ?? String(error)
+        }, 'wake refresh sequence failed');
+      }
+    }, delayMs);
+
+    wakeRefreshTimers.push(timer);
+  }
+}
+
 function updateTray(dashboard) {
   if (!tray || !dashboard) {
     return;
@@ -250,7 +308,10 @@ function updateTray(dashboard) {
       label: '立即刷新',
       click: async () => {
         if (monitorService) {
-          await monitorService.refreshNow();
+          await monitorService.refreshQuota({
+            reason: 'manual',
+            force: true
+          });
         }
       }
     },
@@ -378,10 +439,20 @@ async function bootstrap() {
   });
 
   ipcMain.handle('dashboard:load', async () => monitorService.getDashboard());
-  ipcMain.handle('dashboard:refresh', async () => monitorService.refreshNow());
+  ipcMain.handle('dashboard:refresh', async (_event, options = {}) => (
+    monitorService.refreshQuota(options)
+  ));
   ipcMain.handle('preferences:update', async (_, preferences) => (
     monitorService.updatePreferences(preferences)
   ));
+
+  powerMonitor.on('resume', async () => {
+    scheduleWakeRefreshSequence('resume');
+  });
+
+  powerMonitor.on('unlock-screen', async () => {
+    scheduleWakeRefreshSequence('unlock');
+  });
 
   tray = new Tray(createTrayIcon());
   tray.setToolTip('Codex Monitor');
@@ -425,6 +496,10 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', async () => {
   isQuitting = true;
+  clearWakeRefreshTimers({
+    reason: 'shutdown',
+    cause: 'before-quit'
+  });
   if (monitorService) {
     await monitorService.dispose();
   }

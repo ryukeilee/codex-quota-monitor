@@ -171,7 +171,10 @@ function renderDashboard(dashboard) {
 }
 
 elements.refreshButton.addEventListener('click', async () => {
-  const dashboard = await window.codexMonitor.refreshDashboard();
+  const dashboard = await window.codexMonitor.refreshQuota({
+    reason: 'manual',
+    force: true
+  });
   renderDashboard(dashboard);
 });
 
@@ -200,7 +203,10 @@ window.codexMonitor.onDashboardUpdated((dashboard) => {
 });
 
 const initialDashboard = await window.codexMonitor.loadDashboard().catch(() => null);
-const dashboardToRender = initialDashboard ?? await window.codexMonitor.refreshDashboard().catch(() => null);
+const dashboardToRender = initialDashboard ?? await window.codexMonitor.refreshQuota({
+  reason: 'panel-open',
+  force: true
+}).catch(() => null);
 if (dashboardToRender) {
   try {
     renderDashboard(dashboardToRender);

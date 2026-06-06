@@ -13,7 +13,7 @@ Codex Monitor is a privacy-first, local macOS menu bar application for monitorin
 - Compact mini stats panel
 - Auto-launch support
 - Pure menu bar mode with the Dock hidden
-- Low-frequency refresh strategy
+- Low-frequency refresh strategy with a 5-minute default timer, wake retries, and forced refresh deduping
 - Local SQLite persistence for application state
 - Usage history chart and prediction hints
 
@@ -72,8 +72,17 @@ The fallback snapshot format is intentionally simple:
 - No browser session is required
 - No Chrome dependency is needed
 - The app reads local Codex state only
+- Refresh logs are redacted to avoid leaking tokens, cookies, or account details
 - Runtime data and logs are kept out of version control
 - Local artifacts under `data/`, `logs/`, `.playwright-mcp/`, and other generated files are intended to remain untracked
+
+## Refresh Behavior
+
+- Normal timer refresh runs every 5 minutes
+- A forced refresh is deduped within 10 seconds
+- Mac wake events schedule retries at 5s, 15s, 30s, and 60s
+- Wake retry sequences stop after the first successful refresh
+- Screen unlock triggers a forced refresh
 
 ## Development Rules
 

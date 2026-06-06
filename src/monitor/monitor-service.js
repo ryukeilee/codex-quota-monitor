@@ -211,10 +211,16 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
       clearTimeout(refreshTimer);
     }
     refreshTimer = setTimeout(async () => {
-      await refreshQuota({
-        reason: 'timer',
-        force: false
-      });
+      try {
+        await refreshQuota({
+          reason: 'timer',
+          force: false
+        });
+      } catch (error) {
+        logger.error({
+          error: error?.message ?? String(error)
+        }, 'scheduled refresh failed');
+      }
     }, currentDashboard.refreshInterval);
   }
 
@@ -225,6 +231,9 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
         force,
         cause: 'in-flight'
       }, 'refresh skipped');
+      if (dashboard) {
+        scheduleNextRefresh(dashboard);
+      }
       return dashboard;
     }
 
@@ -237,6 +246,9 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
           cause: 'forced-deduped',
           elapsedMs
         }, 'refresh skipped');
+        if (dashboard) {
+          scheduleNextRefresh(dashboard);
+        }
         return dashboard;
       }
     }
@@ -351,6 +363,7 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
         dashboard = mergeDashboardRefreshState(dashboard);
         writeDashboardArtifact(dashboard);
         onUpdated(dashboard);
+        scheduleNextRefresh(dashboard);
       }
       logger.error({
         reason,

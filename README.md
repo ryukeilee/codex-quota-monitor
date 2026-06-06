@@ -83,6 +83,7 @@ The fallback snapshot format is intentionally simple:
 - Mac wake events schedule retries at 5s, 15s, 30s, and 60s
 - Wake retry sequences stop after the first successful refresh
 - Screen unlock triggers a forced refresh
+- Skipped or failed refreshes keep the timer chain alive so automation continues
 
 ## Development Rules
 

@@ -1,0 +1,18 @@
+{
+  "name": "codex-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Codex quota monitor built around safe local reads and low-frequency refresh.",
+  "main": "src/main.js",
+  "scripts": {
+    "test": "node --test",
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "dependencies": {
+    "echarts": "^6.0.0",
+    "electron": "^37.0.0",
+    "pino": "^10.1.0"
+  }
+}

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codex Monitor</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero-panel">
+        <div>
+          <p class="eyebrow">Codex Monitor</p>
+          <h1>把剩余额度变成稳定开发节奏</h1>
+          <p class="hero-copy">
+            首版采用安全的本地快照读取方式，不碰私有接口，不做危险注入，专注于 5 小时窗口监控、消耗趋势和心流预测。
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button id="refresh-button" class="primary-button">立即刷新</button>
+          <p id="refresh-meta" class="meta-text"></p>
+        </div>
+      </section>
+
+      <section class="card-grid">
+        <article class="metric-card">
+          <p class="metric-label">剩余额度</p>
+          <h2 id="remaining-percent">--</h2>
+          <p id="remaining-detail" class="metric-detail"></p>
+        </article>
+        <article class="metric-card">
+          <p class="metric-label">7 天余额</p>
+          <h2 id="weekly-percent">--</h2>
+          <p id="weekly-detail" class="metric-detail"></p>
+        </article>
+        <article class="metric-card">
+          <p class="metric-label">5 小时窗口</p>
+          <h2 id="window-state">--</h2>
+          <p id="window-detail" class="metric-detail"></p>
+        </article>
+        <article class="metric-card">
+          <p class="metric-label">预计恢复</p>
+          <h2 id="recovery-time">--</h2>
+          <p id="recovery-detail" class="metric-detail"></p>
+        </article>
+        <article class="metric-card">
+          <p class="metric-label">心流预测</p>
+          <h2 id="flow-hours">--</h2>
+          <p id="flow-detail" class="metric-detail"></p>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Trend</p>
+              <h3>剩余额度走势</h3>
+            </div>
+            <p id="source-label" class="meta-text"></p>
+          </div>
+          <div id="history-chart" class="chart"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Mode</p>
+              <h3>刷新策略</h3>
+            </div>
+          </div>
+          <form id="preferences-form" class="preferences-form">
+            <label class="toggle-row">
+              <span>开发中</span>
+              <input id="is-active" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>高强度任务</span>
+              <input id="is-high-intensity" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>5 小时本地预算</span>
+              <input id="five-hour-budget" type="number" min="1000" step="1000" />
+            </label>
+            <label class="toggle-row">
+              <span>菜单栏显示剩余百分比</span>
+              <input id="show-percentage-in-menu-bar" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>关闭窗口后驻留菜单栏</span>
+              <input id="close-to-menu-bar" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>启用低额度提醒</span>
+              <input id="notifications-enabled" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>开机自启动</span>
+              <input id="auto-launch-enabled" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>纯菜单栏模式（隐藏 Dock）</span>
+              <input id="pure-menu-bar-mode" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>点击菜单栏显示迷你面板</span>
+              <input id="show-mini-panel-on-tray-click" type="checkbox" />
+            </label>
+            <button class="secondary-button" type="submit">保存刷新策略</button>
+          </form>
+
+          <div class="recommendation-box">
+            <p class="eyebrow">Forecast</p>
+            <h3>建议</h3>
+            <p id="recommendation-text" class="recommendation-text"></p>
+          </div>
+
+          <div class="records-box">
+            <p class="eyebrow">Recent Records</p>
+            <div id="record-list" class="record-list"></div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="./renderer.js"></script>
+  </body>
+</html>

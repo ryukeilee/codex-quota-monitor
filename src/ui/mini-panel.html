@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codex Monitor Mini Panel</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="mini-panel-body">
+    <main class="mini-panel-shell">
+      <p class="eyebrow">Mini Panel</p>
+      <h2 id="mini-remaining-percent" class="mini-main-metric">--</h2>
+      <p id="mini-window-state" class="meta-text"></p>
+      <div class="mini-stats-grid">
+        <article class="mini-stat-card">
+          <span class="mini-stat-label">已用</span>
+          <strong id="mini-used">--</strong>
+        </article>
+        <article class="mini-stat-card">
+          <span class="mini-stat-label">7 天</span>
+          <strong id="mini-weekly">--</strong>
+        </article>
+        <article class="mini-stat-card">
+          <span class="mini-stat-label">恢复</span>
+          <strong id="mini-recovery">--</strong>
+        </article>
+        <article class="mini-stat-card">
+          <span class="mini-stat-label">预测</span>
+          <strong id="mini-flow">--</strong>
+        </article>
+        <article class="mini-stat-card">
+          <span class="mini-stat-label">刷新</span>
+          <strong id="mini-refresh">--</strong>
+        </article>
+      </div>
+      <p id="mini-recommendation" class="recommendation-text"></p>
+    </main>
+    <script type="module" src="./mini-panel.js"></script>
+  </body>
+</html>

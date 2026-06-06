@@ -1,0 +1,32 @@
+{
+  "sourceLabel": "demo-local-snapshot",
+  "limit": 100,
+  "isActive": true,
+  "isHighIntensity": false,
+  "records": [
+    {
+      "at": "2026-06-06T01:10:00.000Z",
+      "amount": 8,
+      "model": "gpt-5.4",
+      "intensity": "medium"
+    },
+    {
+      "at": "2026-06-06T02:30:00.000Z",
+      "amount": 10,
+      "model": "gpt-5.4",
+      "intensity": "medium"
+    },
+    {
+      "at": "2026-06-06T03:40:00.000Z",
+      "amount": 12,
+      "model": "gpt-5.4",
+      "intensity": "high"
+    },
+    {
+      "at": "2026-06-06T05:00:00.000Z",
+      "amount": 6,
+      "model": "gpt-5.4-mini",
+      "intensity": "low"
+    }
+  ]
+}

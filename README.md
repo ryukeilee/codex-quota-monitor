@@ -8,8 +8,8 @@ Codex Monitor is a privacy-first, local macOS menu bar application for monitorin
 
 - Local-first Electron desktop application
 - Live quota reads from the local Codex app-server
-- Weekly quota retained in the interface
-- Menu bar percentage display with a low-quota warning state
+- Weekly quota prioritized in the menu bar title
+- Last refresh and reset timing surfaced in the tray menu
 - Compact mini stats panel
 - Auto-launch support
 - Pure menu bar mode with the Dock hidden
@@ -63,9 +63,10 @@ The fallback snapshot format is intentionally simple:
 
 ## System Tray
 
-- Displays the current 5-hour remaining percentage in the menu bar title as a plain native-style percentage
-- Displays the weekly remaining percentage in the tray menu
-- Lets you toggle the main window, mini panel, notifications, and menu bar display
+- Displays the weekly remaining percentage in the menu bar title as a plain native-style percentage
+- Shows `Weekly Quota`, `Resets`, `5h Window`, and `Last Refresh` in separated tray sections
+- Keeps notifications and launch-at-login toggles away from the manual refresh action to reduce accidental clicks
+- Lets you open the dashboard, toggle the mini panel, and adjust menu bar preferences from the lower settings section
 
 ## Privacy and Storage
 

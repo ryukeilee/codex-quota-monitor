@@ -22,7 +22,8 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
       remainingPercent: 87,
       remaining: 87,
       used: 13,
-      limit: 100
+      limit: 100,
+      nextRecoveryAt: '2026-06-11T10:30:00.000Z'
     },
     prediction: {
       hoursRemaining: 5,
@@ -35,13 +36,13 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
     }
   });
 
-  assert.equal(state.title, '64%');
-  assert.equal(state.toolTip, 'Codex Monitor: 5 小时剩余 64%');
-  assert.equal(state.lines.remainingLabel, '剩余 64%');
-  assert.equal(state.lines.windowLabel, '5 小时窗口 64%');
-  assert.equal(state.lines.weeklyLabel, '周剩余 87%');
-  assert.equal(state.lines.predictionLabel, '预计还能开发 5 小时');
-  assert.equal(state.lines.recoveryLabel, '预计恢复 06/06 18:30');
+  assert.equal(state.title, '87%');
+  assert.equal(state.toolTip, 'Codex Monitor: Weekly 87% remaining');
+  assert.equal(state.lines.weeklyLabel, 'Weekly Quota 87% remaining');
+  assert.equal(state.lines.weeklyResetLabel, 'Resets Jun 11');
+  assert.equal(state.lines.windowLabel, '5h Window 64% remaining');
+  assert.equal(state.lines.recoveryLabel, '5h Recovery 06/06 18:30');
+  assert.equal(state.lines.lastRefreshLabel, 'Last Refresh 18:12:00');
 });
 
 test('buildMenuBarState keeps the tray title as a plain percentage when quota is near limit', () => {
@@ -60,7 +61,8 @@ test('buildMenuBarState keeps the tray title as a plain percentage when quota is
       remainingPercent: 87,
       remaining: 87,
       used: 13,
-      limit: 100
+      limit: 100,
+      nextRecoveryAt: '2026-06-11T10:30:00.000Z'
     },
     prediction: {
       hoursRemaining: 1,
@@ -74,8 +76,8 @@ test('buildMenuBarState keeps the tray title as a plain percentage when quota is
     refreshInterval: 15000
   });
 
-  assert.equal(state.title, '12%');
-  assert.equal(state.lines.statusLabel, '状态: 接近额度墙');
+  assert.equal(state.title, '87%');
+  assert.equal(state.lines.windowLabel, '5h Window 12% remaining');
 });
 
 test('buildMenuBarState hides title text when menu bar display is disabled', () => {
@@ -94,7 +96,8 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
       remainingPercent: 87,
       remaining: 87,
       used: 13,
-      limit: 100
+      limit: 100,
+      nextRecoveryAt: '2026-06-11T10:30:00.000Z'
     },
     prediction: {
       hoursRemaining: 1,
@@ -108,9 +111,9 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
   });
 
   assert.equal(state.title, '');
-  assert.equal(state.lines.statusLabel, '状态: 接近额度墙');
-  assert.equal(state.lines.recoveryLabel, '预计恢复 暂无');
-  assert.equal(state.lines.weeklyLabel, '周剩余 87%');
+  assert.equal(state.lines.recoveryLabel, '5h Recovery 暂无');
+  assert.equal(state.lines.weeklyLabel, 'Weekly Quota 87% remaining');
+  assert.equal(state.lines.weeklyResetLabel, 'Resets Jun 11');
 });
 
 test('formatRefreshLabel returns the low-frequency refresh label', () => {

@@ -246,10 +246,20 @@ function scheduleWakeRefreshSequence(reason = 'resume') {
           reason,
           force: true,
         });
-        if (nextDashboard && nextDashboard !== beforeDashboard) {
+        const didRefreshQuotaValue = Boolean(
+          nextDashboard &&
+          beforeDashboard &&
+          (
+            nextDashboard.summary?.remainingPercent !== beforeDashboard.summary?.remainingPercent ||
+            nextDashboard.weeklySummary?.remainingPercent !== beforeDashboard.weeklySummary?.remainingPercent ||
+            nextDashboard.source?.label !== beforeDashboard.source?.label
+          )
+        );
+
+        if (didRefreshQuotaValue) {
           clearWakeRefreshTimers({
             reason,
-            cause: 'success'
+            cause: 'quota-updated'
           });
         }
       } catch (error) {
@@ -276,34 +286,22 @@ function updateTray(dashboard) {
   tray.setToolTip(menuBarState.toolTip);
   tray.setContextMenu(Menu.buildFromTemplate([
     {
-      label: menuBarState.lines.windowLabel,
-      enabled: false
-    },
-    {
       label: menuBarState.lines.weeklyLabel,
       enabled: false
     },
     {
-      label: menuBarState.lines.statusLabel,
+      label: menuBarState.lines.weeklyResetLabel,
       enabled: false
     },
     {
-      label: menuBarState.lines.predictionLabel,
+      label: menuBarState.lines.windowLabel,
       enabled: false
     },
     {
-      label: menuBarState.lines.recoveryLabel,
+      label: menuBarState.lines.lastRefreshLabel,
       enabled: false
     },
     { type: 'separator' },
-    {
-      label: dashboard.preferences.closeToMenuBar ? '显示 / 隐藏主窗口' : '显示主窗口',
-      click: () => toggleMainWindow()
-    },
-    {
-      label: '显示 / 隐藏迷你统计面板',
-      click: () => toggleMiniPanel()
-    },
     {
       label: '立即刷新',
       click: async () => {
@@ -316,7 +314,12 @@ function updateTray(dashboard) {
       }
     },
     {
-      label: dashboard.preferences.notificationsEnabled ? '关闭提醒通知' : '开启提醒通知',
+      type: 'separator'
+    },
+    {
+      type: 'checkbox',
+      label: '低额度提醒通知',
+      checked: dashboard.preferences.notificationsEnabled,
       click: async () => {
         if (monitorService) {
           await monitorService.updatePreferences({
@@ -326,37 +329,9 @@ function updateTray(dashboard) {
       }
     },
     {
-      label: dashboard.preferences.showPercentageInMenuBar ? '隐藏菜单栏百分比' : '显示菜单栏百分比',
-      click: async () => {
-        if (monitorService) {
-          await monitorService.updatePreferences({
-            showPercentageInMenuBar: !dashboard.preferences.showPercentageInMenuBar
-          });
-        }
-      }
-    },
-    {
-      label: dashboard.preferences.closeToMenuBar ? '关闭窗口时驻留菜单栏: 开' : '关闭窗口时驻留菜单栏: 关',
-      click: async () => {
-        if (monitorService) {
-          await monitorService.updatePreferences({
-            closeToMenuBar: !dashboard.preferences.closeToMenuBar
-          });
-        }
-      }
-    },
-    {
-      label: dashboard.preferences.showMiniPanelOnTrayClick ? '点击菜单栏打开迷你面板: 开' : '点击菜单栏打开迷你面板: 关',
-      click: async () => {
-        if (monitorService) {
-          await monitorService.updatePreferences({
-            showMiniPanelOnTrayClick: !dashboard.preferences.showMiniPanelOnTrayClick
-          });
-        }
-      }
-    },
-    {
-      label: dashboard.preferences.autoLaunchEnabled ? '开机自启动: 开' : '开机自启动: 关',
+      type: 'checkbox',
+      label: '开机自启动',
+      checked: dashboard.preferences.autoLaunchEnabled,
       click: async () => {
         if (monitorService) {
           await monitorService.updatePreferences({
@@ -366,7 +341,56 @@ function updateTray(dashboard) {
       }
     },
     {
-      label: dashboard.preferences.pureMenuBarMode ? '纯菜单栏模式: 开' : '纯菜单栏模式: 关',
+      type: 'separator'
+    },
+    {
+      label: '打开 Dashboard',
+      click: () => showMainWindow()
+    },
+    {
+      label: '显示 / 隐藏迷你统计面板',
+      click: () => toggleMiniPanel()
+    },
+    {
+      type: 'checkbox',
+      label: '菜单栏显示 Weekly 百分比',
+      checked: dashboard.preferences.showPercentageInMenuBar,
+      click: async () => {
+        if (monitorService) {
+          await monitorService.updatePreferences({
+            showPercentageInMenuBar: !dashboard.preferences.showPercentageInMenuBar
+          });
+        }
+      }
+    },
+    {
+      type: 'checkbox',
+      label: '关闭窗口时驻留菜单栏',
+      checked: dashboard.preferences.closeToMenuBar,
+      click: async () => {
+        if (monitorService) {
+          await monitorService.updatePreferences({
+            closeToMenuBar: !dashboard.preferences.closeToMenuBar
+          });
+        }
+      }
+    },
+    {
+      type: 'checkbox',
+      label: '点击菜单栏打开迷你面板',
+      checked: dashboard.preferences.showMiniPanelOnTrayClick,
+      click: async () => {
+        if (monitorService) {
+          await monitorService.updatePreferences({
+            showMiniPanelOnTrayClick: !dashboard.preferences.showMiniPanelOnTrayClick
+          });
+        }
+      }
+    },
+    {
+      type: 'checkbox',
+      label: '纯菜单栏模式',
+      checked: dashboard.preferences.pureMenuBarMode,
       click: async () => {
         if (monitorService) {
           await monitorService.updatePreferences({

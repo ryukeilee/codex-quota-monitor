@@ -237,7 +237,9 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
       return dashboard;
     }
 
-    if (force && refreshState.lastForcedRefreshAt) {
+    const shouldDedupForcedRefresh = force && reason !== 'manual';
+
+    if (shouldDedupForcedRefresh && refreshState.lastForcedRefreshAt) {
       const elapsedMs = Date.now() - new Date(refreshState.lastForcedRefreshAt).getTime();
       if (elapsedMs < FORCE_DEDUPE_MS && dashboard) {
         logger.debug({

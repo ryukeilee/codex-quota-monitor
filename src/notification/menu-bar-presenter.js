@@ -39,6 +39,30 @@ function formatClockTime(value) {
   });
 }
 
+function formatDevelopmentState(preferences) {
+  if (!preferences?.isActive) {
+    return '已暂停';
+  }
+
+  return preferences.isHighIntensity ? '开发中 · 高强度' : '开发中 · 轻强度';
+}
+
+function formatPredictionState(prediction) {
+  if (!prediction) {
+    return '暂无';
+  }
+
+  if (prediction.recommendedIntensity === 'low') {
+    return '建议降速';
+  }
+
+  if (prediction.recommendedIntensity === 'current') {
+    return '保持当前节奏';
+  }
+
+  return '暂无';
+}
+
 function formatTrayTitle(summary, weeklySummary, preferences) {
   if (!preferences.showPercentageInMenuBar) {
     return '';
@@ -71,6 +95,8 @@ export function buildMenuBarState(dashboard) {
       weeklyResetLabel: `重置于 ${formatShortDate(weeklyResetAt)}`,
       windowLabel: `5 小时窗口 ${formatUsageDetail(dashboard.summary)} 剩余`,
       recoveryLabel: `5 小时恢复 ${formatDateTime(dashboard.summary.nextRecoveryAt)}`,
+      predictionLabel: `心流预测 ${formatPredictionState(dashboard.prediction)}`,
+      developmentLabel: `开发状态 ${formatDevelopmentState(dashboard.preferences)}`,
       lastRefreshLabel: `最近刷新 ${formatClockTime(dashboard.refreshedAt)}`,
       refreshLabel: formatRefreshLabel(dashboard.refreshInterval)
     }

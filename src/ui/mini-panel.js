@@ -32,6 +32,22 @@ function formatDevelopmentState(preferences) {
   return preferences.isHighIntensity ? '开发中 · 高强度' : '开发中 · 轻强度';
 }
 
+function formatPredictionState(prediction) {
+  if (!prediction) {
+    return '暂无';
+  }
+
+  if (prediction.recommendedIntensity === 'low') {
+    return '建议降速';
+  }
+
+  if (prediction.recommendedIntensity === 'current') {
+    return '保持当前节奏';
+  }
+
+  return '暂无';
+}
+
 function formatRefreshLabel(intervalMs) {
   if (intervalMs < 60 * 1000) {
     return `${Math.round(intervalMs / 1000)} 秒`;
@@ -80,7 +96,7 @@ function renderDashboard(dashboard) {
     hour: '2-digit',
     minute: '2-digit'
   })}`;
-  elements.recommendation.textContent = `心流预测：${dashboard.prediction.recommendation}`;
+  elements.recommendation.textContent = `心流预测：${formatPredictionState(dashboard.prediction)} · ${dashboard.prediction.recommendation}`;
 }
 
 window.codexMonitor.onDashboardUpdated((dashboard) => {

@@ -32,6 +32,8 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
       recommendation: '当前消耗速度平稳，建议保持当前节奏。'
     },
     preferences: {
+      isActive: true,
+      isHighIntensity: false,
       showPercentageInMenuBar: true
     }
   });
@@ -42,6 +44,8 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   assert.equal(state.lines.weeklyResetLabel, '重置于 06/11 18:30');
   assert.equal(state.lines.windowLabel, '5 小时窗口 64% 剩余');
   assert.equal(state.lines.recoveryLabel, '5 小时恢复 06/06 18:30');
+  assert.equal(state.lines.predictionLabel, '心流预测 保持当前节奏');
+  assert.equal(state.lines.developmentLabel, '开发状态 开发中 · 轻强度');
   assert.equal(state.lines.lastRefreshLabel, '最近刷新 18:12:00');
 });
 

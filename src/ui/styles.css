@@ -65,7 +65,7 @@ body::after {
 }
 
 .mini-panel-shell {
-  height: 100vh;
+  min-height: 100vh;
   padding: 14px 14px 16px;
   display: flex;
   flex-direction: column;
@@ -97,17 +97,14 @@ body::after {
 }
 
 .mini-panel-shell .meta-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .mini-panel-shell .recommendation-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
   margin: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .mini-stats-grid {
@@ -137,12 +134,21 @@ body::after {
   letter-spacing: 0.08em;
 }
 
+.mini-stat-card strong {
+  display: block;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .mini-stat-note {
   display: block;
   margin-top: 6px;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .summary-strip {

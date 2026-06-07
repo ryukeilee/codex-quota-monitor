@@ -103,9 +103,9 @@ async function createMainWindow() {
 async function createMiniPanelWindow() {
   miniPanelWindow = new BrowserWindow({
     width: 360,
-    height: 440,
+    height: 520,
     minWidth: 340,
-    minHeight: 400,
+    minHeight: 480,
     resizable: false,
     maximizable: false,
     minimizable: false,
@@ -299,6 +299,14 @@ function updateTray(dashboard) {
     },
     {
       label: menuBarState.lines.lastRefreshLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.predictionLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.developmentLabel,
       enabled: false
     },
     { type: 'separator' },

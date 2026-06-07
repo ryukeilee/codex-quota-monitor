@@ -37,12 +37,12 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   });
 
   assert.equal(state.title, '87%');
-  assert.equal(state.toolTip, 'Codex Monitor: Weekly 87% remaining');
-  assert.equal(state.lines.weeklyLabel, 'Weekly Quota 87% remaining');
-  assert.equal(state.lines.weeklyResetLabel, 'Resets Jun 11');
-  assert.equal(state.lines.windowLabel, '5h Window 64% remaining');
-  assert.equal(state.lines.recoveryLabel, '5h Recovery 06/06 18:30');
-  assert.equal(state.lines.lastRefreshLabel, 'Last Refresh 18:12:00');
+  assert.equal(state.toolTip, 'Codex Monitor：周额度剩余 87%');
+  assert.equal(state.lines.weeklyLabel, '周额度 87% 剩余');
+  assert.equal(state.lines.weeklyResetLabel, '重置于 06/11 18:30');
+  assert.equal(state.lines.windowLabel, '5 小时窗口 64% 剩余');
+  assert.equal(state.lines.recoveryLabel, '5 小时恢复 06/06 18:30');
+  assert.equal(state.lines.lastRefreshLabel, '最近刷新 18:12:00');
 });
 
 test('buildMenuBarState keeps the tray title as a plain percentage when quota is near limit', () => {
@@ -77,7 +77,7 @@ test('buildMenuBarState keeps the tray title as a plain percentage when quota is
   });
 
   assert.equal(state.title, '87%');
-  assert.equal(state.lines.windowLabel, '5h Window 12% remaining');
+  assert.equal(state.lines.windowLabel, '5 小时窗口 12% 剩余');
 });
 
 test('buildMenuBarState hides title text when menu bar display is disabled', () => {
@@ -111,9 +111,9 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
   });
 
   assert.equal(state.title, '');
-  assert.equal(state.lines.recoveryLabel, '5h Recovery 暂无');
-  assert.equal(state.lines.weeklyLabel, 'Weekly Quota 87% remaining');
-  assert.equal(state.lines.weeklyResetLabel, 'Resets Jun 11');
+  assert.equal(state.lines.recoveryLabel, '5 小时恢复 暂无');
+  assert.equal(state.lines.weeklyLabel, '周额度 87% 剩余');
+  assert.equal(state.lines.weeklyResetLabel, '重置于 06/11 18:30');
 });
 
 test('formatRefreshLabel returns the low-frequency refresh label', () => {

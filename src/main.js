@@ -344,7 +344,7 @@ function updateTray(dashboard) {
       type: 'separator'
     },
     {
-      label: '打开 Dashboard',
+      label: '打开主窗口',
       click: () => showMainWindow()
     },
     {
@@ -353,7 +353,7 @@ function updateTray(dashboard) {
     },
     {
       type: 'checkbox',
-      label: '菜单栏显示 Weekly 百分比',
+      label: '菜单栏显示周百分比',
       checked: dashboard.preferences.showPercentageInMenuBar,
       click: async () => {
         if (monitorService) {

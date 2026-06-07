@@ -119,10 +119,6 @@ body::after {
   align-content: start;
 }
 
-.mini-stats-grid .mini-stat-card:last-child {
-  grid-column: 1 / -1;
-}
-
 .mini-stat-card {
   min-height: 74px;
   padding: 12px 13px 11px;
@@ -139,6 +135,14 @@ body::after {
   color: var(--muted);
   font-size: 11px;
   letter-spacing: 0.08em;
+}
+
+.mini-stat-note {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .summary-strip {

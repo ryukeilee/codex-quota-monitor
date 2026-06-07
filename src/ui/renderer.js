@@ -25,6 +25,9 @@ const elements = {
   recoveryTime: document.getElementById('recovery-time'),
   recoveryDetail: document.getElementById('recovery-detail'),
   recoveryTimeInline: document.getElementById('recovery-time-inline'),
+  developmentState: document.getElementById('development-state'),
+  developmentDetail: document.getElementById('development-detail'),
+  developmentStateInline: document.getElementById('development-state-inline'),
   liveSourceLabel: document.getElementById('live-source-label'),
   liveSourceLabelTop: document.getElementById('live-source-label-top'),
   flowHours: document.getElementById('flow-hours'),
@@ -55,6 +58,39 @@ function formatTime(value) {
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '暂无';
+  }
+
+  return new Date(value).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function formatDevelopmentState(preferences) {
+  if (!preferences?.isActive) {
+    return '已暂停';
+  }
+
+  return preferences.isHighIntensity ? '开发中 · 高强度' : '开发中 · 轻强度';
+}
+
+function formatRecommendedIntensity(value) {
+  if (value === 'low') {
+    return '建议降速';
+  }
+
+  if (value === 'current') {
+    return '保持当前节奏';
+  }
+
+  return '暂无';
 }
 
 function renderHistory(history) {
@@ -134,7 +170,7 @@ function renderDashboard(dashboard) {
     ? `${dashboard.weeklySummary.remainingPercent}%`
     : '--';
   elements.weeklyDetail.textContent = dashboard.weeklySummary
-    ? `近 7 天 ${formatUsageDetail(dashboard.weeklySummary)}`
+    ? `近 7 天 ${formatUsageDetail(dashboard.weeklySummary)} · 重置于 ${formatDateTime(dashboard.weeklySummary.nextRecoveryAt)}`
     : '暂无周数据';
   elements.weeklyPercentInline.textContent = dashboard.weeklySummary
     ? `${dashboard.weeklySummary.remainingPercent}%`
@@ -147,15 +183,20 @@ function renderDashboard(dashboard) {
     ? '按照最早一笔窗口内消耗估算'
     : '暂无待恢复记录';
   elements.recoveryTimeInline.textContent = formatTime(dashboard.summary.nextRecoveryAt);
+  elements.developmentState.textContent = formatDevelopmentState(dashboard.preferences);
+  elements.developmentDetail.textContent = dashboard.preferences.isActive
+    ? (dashboard.preferences.isHighIntensity ? '当前按高强度开发节奏运行' : '当前按常规开发节奏运行')
+    : '当前处于暂停状态';
+  elements.developmentStateInline.textContent = formatDevelopmentState(dashboard.preferences);
   elements.liveSourceLabel.textContent = dashboard.source.label;
   elements.liveSourceLabelTop.textContent = dashboard.source.label;
   elements.flowHours.textContent = Number.isFinite(dashboard.prediction.hoursRemaining)
     ? `${dashboard.prediction.hoursRemaining} 小时`
     : '充足';
-  elements.flowDetail.textContent = `当前建议：${dashboard.prediction.recommendedIntensity}`;
+  elements.flowDetail.textContent = `预测建议：${formatRecommendedIntensity(dashboard.prediction.recommendedIntensity)}`;
   elements.refreshMeta.textContent = `最近刷新 ${formatTime(dashboard.refreshedAt)}`;
   elements.trendSourceLabel.textContent = `数据源：${dashboard.source.label}`;
-  elements.recommendationText.textContent = dashboard.prediction.recommendation;
+  elements.recommendationText.textContent = `心流预测：${dashboard.prediction.recommendation}`;
   elements.isActive.checked = dashboard.preferences.isActive;
   elements.isHighIntensity.checked = dashboard.preferences.isHighIntensity;
   elements.fiveHourBudget.value = dashboard.preferences.fiveHourBudget;

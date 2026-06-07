@@ -15,12 +15,14 @@ function formatDateTime(value) {
 
 function formatShortDate(value) {
   if (!value) {
-    return 'TBD';
+    return '暂无';
   }
 
-  return new Date(value).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric'
+  return new Date(value).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
   });
 }
 
@@ -29,7 +31,7 @@ function formatClockTime(value) {
     return '暂无';
   }
 
-  return new Date(value).toLocaleTimeString('en-US', {
+  return new Date(value).toLocaleTimeString('zh-CN', {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
@@ -63,13 +65,13 @@ export function buildMenuBarState(dashboard) {
 
   return {
     title: formatTrayTitle(dashboard.summary, dashboard.weeklySummary, dashboard.preferences),
-    toolTip: `Codex Monitor: Weekly ${weeklyRemainingPercent} remaining`,
+    toolTip: `Codex Monitor：周额度剩余 ${weeklyRemainingPercent}`,
     lines: {
-      weeklyLabel: `Weekly Quota ${weeklyRemainingPercent} remaining`,
-      weeklyResetLabel: `Resets ${formatShortDate(weeklyResetAt)}`,
-      windowLabel: `5h Window ${formatUsageDetail(dashboard.summary)} remaining`,
-      recoveryLabel: `5h Recovery ${formatDateTime(dashboard.summary.nextRecoveryAt)}`,
-      lastRefreshLabel: `Last Refresh ${formatClockTime(dashboard.refreshedAt)}`,
+      weeklyLabel: `周额度 ${weeklyRemainingPercent} 剩余`,
+      weeklyResetLabel: `重置于 ${formatShortDate(weeklyResetAt)}`,
+      windowLabel: `5 小时窗口 ${formatUsageDetail(dashboard.summary)} 剩余`,
+      recoveryLabel: `5 小时恢复 ${formatDateTime(dashboard.summary.nextRecoveryAt)}`,
+      lastRefreshLabel: `最近刷新 ${formatClockTime(dashboard.refreshedAt)}`,
       refreshLabel: formatRefreshLabel(dashboard.refreshInterval)
     }
   };

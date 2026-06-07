@@ -13,7 +13,7 @@
           <p class="eyebrow">Codex Monitor</p>
           <h1>把剩余额度变成稳定开发节奏</h1>
           <p class="hero-copy">
-            首版采用安全的本地快照读取方式，不碰私有接口，不做危险注入，专注于 5 小时窗口监控、消耗趋势和心流预测。
+            首版采用安全的本地快照读取方式，不碰私有接口，不做危险注入，专注于周额度、5 小时窗口、消耗趋势和心流预测。
           </p>
         </div>
         <div class="hero-actions">
@@ -48,6 +48,11 @@
           <h2 id="flow-hours">--</h2>
           <p id="flow-detail" class="metric-detail"></p>
         </article>
+        <article class="metric-card">
+          <p class="metric-label">开发状态</p>
+          <h2 id="development-state">--</h2>
+          <p id="development-detail" class="metric-detail"></p>
+        </article>
       </section>
 
       <section class="panel">
@@ -78,6 +83,10 @@
           <div class="summary-pill">
             <span class="summary-label">数据源</span>
             <strong id="live-source-label">--</strong>
+          </div>
+          <div class="summary-pill">
+            <span class="summary-label">开发状态</span>
+            <strong id="development-state-inline">--</strong>
           </div>
         </div>
       </section>

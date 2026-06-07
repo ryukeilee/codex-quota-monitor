@@ -11,6 +11,27 @@ function formatTime(value) {
   });
 }
 
+function formatWeeklyReset(value) {
+  if (!value) {
+    return '暂无重置时间';
+  }
+
+  return new Date(value).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function formatDevelopmentState(preferences) {
+  if (!preferences?.isActive) {
+    return '已暂停';
+  }
+
+  return preferences.isHighIntensity ? '开发中 · 高强度' : '开发中 · 轻强度';
+}
+
 function formatRefreshLabel(intervalMs) {
   if (intervalMs < 60 * 1000) {
     return `${Math.round(intervalMs / 1000)} 秒`;
@@ -24,9 +45,11 @@ const elements = {
   windowState: document.getElementById('mini-window-state'),
   used: document.getElementById('mini-used'),
   weekly: document.getElementById('mini-weekly'),
+  weeklyDetail: document.getElementById('mini-weekly-detail'),
   recovery: document.getElementById('mini-recovery'),
   flow: document.getElementById('mini-flow'),
   refresh: document.getElementById('mini-refresh'),
+  development: document.getElementById('mini-development-state'),
   meta: document.getElementById('mini-meta'),
   recommendation: document.getElementById('mini-recommendation')
 };
@@ -42,18 +65,22 @@ function renderDashboard(dashboard) {
   elements.weekly.textContent = dashboard.weeklySummary
     ? `${dashboard.weeklySummary.remainingPercent}%`
     : '--';
+  elements.weeklyDetail.textContent = dashboard.weeklySummary
+    ? `重置于 ${formatWeeklyReset(dashboard.weeklySummary.nextRecoveryAt)}`
+    : '暂无周数据';
   elements.recovery.textContent = formatTime(dashboard.summary.nextRecoveryAt);
   elements.flow.textContent = Number.isFinite(dashboard.prediction.hoursRemaining)
     ? `${dashboard.prediction.hoursRemaining} 小时`
     : '充足';
   elements.refresh.textContent = formatRefreshLabel(dashboard.refreshInterval);
+  elements.development.textContent = formatDevelopmentState(dashboard.preferences);
   elements.meta.textContent = `${dashboard.source.label} · 最近刷新 ${new Date(dashboard.refreshedAt).toLocaleString('zh-CN', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit'
   })}`;
-  elements.recommendation.textContent = dashboard.prediction.recommendation;
+  elements.recommendation.textContent = `心流预测：${dashboard.prediction.recommendation}`;
 }
 
 window.codexMonitor.onDashboardUpdated((dashboard) => {

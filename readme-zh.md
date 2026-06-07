@@ -43,6 +43,8 @@ npm start
 - 周额度剩余百分比
 - 恢复时间戳
 
+其中 5 小时窗口优先读取 `account/rateLimits/read` 里的 `individualLimit.remainingPercent`，旧版 `primary.usedPercent` 仅作为兼容回退。
+
 本地快照格式如下：
 
 ```json

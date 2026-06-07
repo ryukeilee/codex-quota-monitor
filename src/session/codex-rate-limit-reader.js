@@ -10,7 +10,7 @@ function toIsoTimestamp(seconds) {
   return new Date(seconds * 1000).toISOString();
 }
 
-function normalizeWindow(window) {
+function normalizeUsedPercentWindow(window) {
   if (!window || typeof window.usedPercent !== 'number') {
     return null;
   }
@@ -29,6 +29,25 @@ function normalizeWindow(window) {
   };
 }
 
+function normalizeRemainingPercentWindow(window) {
+  if (!window || typeof window.remainingPercent !== 'number') {
+    return null;
+  }
+
+  const remainingPercent = Math.max(0, Math.min(100, window.remainingPercent));
+  return {
+    limit: 100,
+    used: Math.max(0, 100 - remainingPercent),
+    remaining: remainingPercent,
+    remainingPercent,
+    windowUsageCount: 0,
+    windowState: remainingPercent <= 15 ? 'near_limit' : 'healthy',
+    nextRecoveryAt: toIsoTimestamp(window.resetsAt),
+    presentation: 'percent',
+    windowDurationMins: null
+  };
+}
+
 export function normalizeRateLimitsResponse(response) {
   const rateLimits = response?.rateLimits ?? response?.result?.rateLimits;
   if (!rateLimits?.primary || !rateLimits?.secondary) {
@@ -37,8 +56,8 @@ export function normalizeRateLimitsResponse(response) {
 
   return {
     sourceLabel: 'codex-account-rate-limits',
-    primary: normalizeWindow(rateLimits.primary),
-    secondary: normalizeWindow(rateLimits.secondary),
+    primary: normalizeRemainingPercentWindow(rateLimits.individualLimit) ?? normalizeUsedPercentWindow(rateLimits.primary),
+    secondary: normalizeUsedPercentWindow(rateLimits.secondary),
     credits: rateLimits.credits ?? null,
     planType: rateLimits.planType ?? null,
     rateLimitReachedType: rateLimits.rateLimitReachedType ?? null

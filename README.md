@@ -43,6 +43,8 @@ The live source provides:
 - Weekly quota remaining percentage
 - Reset timestamps
 
+The 5-hour window display prefers the live `individualLimit.remainingPercent` field from `account/rateLimits/read`, with the older `primary.usedPercent` shape kept as a fallback for compatibility.
+
 The fallback snapshot format is intentionally simple:
 
 ```json

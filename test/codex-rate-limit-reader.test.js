@@ -6,6 +6,12 @@ import { normalizeRateLimitsResponse } from '../src/session/codex-rate-limit-rea
 test('normalizeRateLimitsResponse maps app-server rate limits into percent summaries', () => {
   const result = normalizeRateLimitsResponse({
     rateLimits: {
+      individualLimit: {
+        limit: '25071924',
+        used: '503438',
+        remainingPercent: 98,
+        resetsAt: 1791234567
+      },
       primary: {
         usedPercent: 10,
         windowDurationMins: 300,
@@ -23,8 +29,8 @@ test('normalizeRateLimitsResponse maps app-server rate limits into percent summa
 
   assert.ok(result);
   assert.equal(result.sourceLabel, 'codex-account-rate-limits');
-  assert.equal(result.primary.used, 10);
-  assert.equal(result.primary.remainingPercent, 90);
+  assert.equal(result.primary.used, 2);
+  assert.equal(result.primary.remainingPercent, 98);
   assert.equal(result.primary.presentation, 'percent');
   assert.equal(result.primary.windowState, 'healthy');
   assert.equal(result.primary.nextRecoveryAt, new Date(1791234567 * 1000).toISOString());

@@ -7,7 +7,8 @@ function toTimestamp(value) {
 export function buildIncrementalUsageRecords({
   records = [],
   previousByThread = {},
-  now = new Date()
+  now = new Date(),
+  resetState = false
 }) {
   const nowTs = toTimestamp(now);
   const usageRecords = [];
@@ -24,8 +25,8 @@ export function buildIncrementalUsageRecords({
     if (previous) {
       amount = Math.max(record.totalTokens - previous.lastTotalTokens, 0);
     } else {
-      const createdAtTs = toTimestamp(record.createdAt);
-      if (Number.isFinite(createdAtTs) && nowTs - createdAtTs <= FIVE_HOUR_WINDOW_MS) {
+      const baselineTs = resetState ? toTimestamp(record.at) : toTimestamp(record.createdAt);
+      if (Number.isFinite(baselineTs) && nowTs - baselineTs <= FIVE_HOUR_WINDOW_MS) {
         amount = Math.max(record.totalTokens, 0);
       }
     }

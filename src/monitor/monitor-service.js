@@ -9,6 +9,7 @@ import { writeDashboardArtifact } from '../utils/dashboard-artifact.js';
 
 const LEGACY_FIVE_HOUR_BUDGET = 10_000_000;
 const CALIBRATED_LOCAL_FIVE_HOUR_BUDGET = 25_071_924;
+const FIVE_HOUR_WINDOW_MS = 5 * 60 * 60 * 1000;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const LIVE_RATE_LIMIT_REFRESH_FLOOR_MS = 5 * 60 * 1000;
 const FORCE_DEDUPE_MS = 10_000;
@@ -71,7 +72,10 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
     const { usageRecords, nextStateByThread } = buildIncrementalUsageRecords({
       records: snapshot.records,
       previousByThread,
-      now
+      now,
+      resetState: refreshState.lastSuccessfulRefreshAt
+        ? now.getTime() - new Date(refreshState.lastSuccessfulRefreshAt).getTime() >= FIVE_HOUR_WINDOW_MS
+        : false
     });
 
     database.upsertThreadUsageState(nextStateByThread);
@@ -315,6 +319,14 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
         });
         const { snapshot, sourceFile } = await reader.readSnapshot();
         const preferences = mergePreferences(snapshot, persistedPreferences);
+        const shouldResetLocalUsageState = refreshState.lastSuccessfulRefreshAt
+          ? now.getTime() - new Date(refreshState.lastSuccessfulRefreshAt).getTime() >= FIVE_HOUR_WINDOW_MS
+          : false;
+
+        if (shouldResetLocalUsageState) {
+          database.clearUsageTracking();
+        }
+
         const usageRecords = materializeUsageRecords(snapshot, now);
 
         database.saveUsageRecords(usageRecords);

@@ -89,3 +89,32 @@ test('buildIncrementalUsageRecords keeps full tokens for a newly created thread 
     }
   ]);
 });
+
+test('buildIncrementalUsageRecords can re-anchor stale local state after a long sleep', () => {
+  const result = buildIncrementalUsageRecords({
+    now: new Date('2026-06-06T12:00:00.000Z'),
+    resetState: true,
+    records: [
+      {
+        threadId: 'thread-3',
+        at: '2026-06-06T11:58:00.000Z',
+        createdAt: '2026-06-01T10:30:00.000Z',
+        totalTokens: 240000,
+        amount: 240000,
+        model: 'gpt-5.4',
+        intensity: 'medium'
+      }
+    ],
+    previousByThread: {}
+  });
+
+  assert.deepEqual(result.usageRecords, [
+    {
+      threadId: 'thread-3',
+      at: '2026-06-06T11:58:00.000Z',
+      amount: 240000,
+      model: 'gpt-5.4',
+      intensity: 'medium'
+    }
+  ]);
+});

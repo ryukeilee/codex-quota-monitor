@@ -3,7 +3,9 @@ import { formatUsageDetail } from './utils/format-usage.js';
 
 const logger = {
   info() {},
-  error() {}
+  warn() {},
+  error() {},
+  debug() {}
 };
 
 const service = await createMonitorService({

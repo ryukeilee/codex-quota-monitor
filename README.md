@@ -1,22 +1,17 @@
 # Codex Monitor
 
-Codex Monitor is a privacy-first macOS menu bar app for tracking Codex usage with a quiet, native-style experience. It stays local, refreshes sparingly, and keeps the most useful quota signals visible without adding noise.
+Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Codex every day. It keeps your remaining quota visible, stays local, and gets out of the way.
 
 [中文版说明](./readme-zh.md)
 
-## Overview
+## Highlights
 
-- Local-first Electron desktop app
-- Standalone macOS `.app` bundle for double-click launching
-- Live quota reads from the local Codex app-server, with local snapshots as fallback
-- Weekly remaining quota shown in the menu bar title
-- Refresh time, reset timing, and quota context surfaced in the tray menu
-- Weekly reset timing, flow prediction, and development state shown in the main window
-- Auto-launch support
-- Pure menu bar mode with the Dock hidden
-- Low-frequency refresh strategy with a 5-minute default timer, wake retries, and forced refresh deduping
-- Local SQLite persistence for app state
-- Usage history chart and prediction hints
+- Live Codex quota at a glance
+- Native-style menu bar display with a compact tray menu
+- Local-first and privacy-first by design
+- Automatic refresh with low-frequency polling
+- Dashboard view for reset timing, trends, and prediction hints
+- Auto-launch and pure menu bar mode support
 
 ## Quick Start
 
@@ -32,7 +27,7 @@ After building, open `dist/Codex Monitor.app` from Finder to launch the packaged
 
 ## Data Sources
 
-The application prefers live local quota data from the Codex app-server and falls back to local snapshots when needed.
+The app prefers live local quota data from the Codex app-server and falls back to local snapshots when needed.
 
 Source priority:
 
@@ -44,8 +39,6 @@ The live source provides:
 - 5-hour quota remaining percentage
 - Weekly quota remaining percentage
 - Reset timestamps
-
-The 5-hour window display prefers the live `individualLimit.remainingPercent` field from `account/rateLimits/read`, with the older `primary.usedPercent` shape kept as a fallback for compatibility.
 
 The fallback snapshot format is intentionally simple:
 
@@ -68,10 +61,10 @@ The fallback snapshot format is intentionally simple:
 
 ## System Tray
 
-- Displays the weekly remaining percentage in the menu bar title as a plain native-style percentage
-- Shows tray labels for weekly quota, reset timing, 5-hour window, and last refresh in separated sections
-- Keeps notifications and launch-at-login toggles away from the manual refresh action to reduce accidental clicks
-- Lets you open the dashboard and adjust menu bar preferences from the lower settings section
+- Shows weekly remaining quota as a plain native-style percentage
+- Surfaces reset timing, 5-hour window status, and last refresh in a compact menu
+- Keeps manual refresh separate from settings toggles
+- Opens the dashboard and preferences from the lower section
 
 ## Privacy and Storage
 
@@ -85,12 +78,12 @@ The fallback snapshot format is intentionally simple:
 ## Refresh Behavior
 
 - Normal timer refresh runs every 5 minutes
-- A forced refresh is deduped within 10 seconds
+- Forced refreshes are deduped within 10 seconds
 - Mac wake events schedule retries at 5s, 15s, 30s, and 60s
 - Wake retry sequences stop after the first successful refresh
 - Screen unlock triggers a forced refresh
-- After a long sleep, if the live read still falls back to local thread data, the app re-anchors the 5-hour window so stale local state does not leak into the current quota
-- Skipped or failed refreshes keep the timer chain alive so automation continues
+- After a long sleep, stale local state is re-anchored to the current 5-hour window
+- Skipped or failed refreshes keep the timer chain alive
 
 ## Development Rules
 

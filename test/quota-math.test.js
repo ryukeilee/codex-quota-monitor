@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { summarizeUsage, getRefreshInterval } from '../src/core/quota-math.js';
+import { summarizeUsage, getRefreshInterval, buildUsageTrendHistory } from '../src/core/quota-math.js';
 
 test('summarizeUsage reports remaining quota and next recovery inside the 5-hour window', () => {
   const now = new Date('2026-06-06T10:00:00.000Z');
@@ -57,6 +57,25 @@ test('summarizeUsage supports a seven day rolling window', () => {
   assert.equal(result.remaining, 500);
   assert.equal(result.remainingPercent, 50);
   assert.equal(result.windowUsageCount, 3);
+});
+
+test('buildUsageTrendHistory reconstructs the 5-hour remaining quota from usage records', () => {
+  const now = new Date('2026-06-06T10:00:00.000Z');
+  const result = buildUsageTrendHistory({
+    limit: 100,
+    now,
+    records: [
+      { at: '2026-06-06T05:30:00.000Z', amount: 10 },
+      { at: '2026-06-06T07:30:00.000Z', amount: 25 },
+      { at: '2026-06-06T08:45:00.000Z', amount: 15 }
+    ]
+  });
+
+  assert.equal(result.length, 4);
+  assert.equal(result[0].remainingPercent, 100);
+  assert.equal(result[1].remainingPercent, 90);
+  assert.equal(result[2].remainingPercent, 65);
+  assert.equal(result[3].remainingPercent, 50);
 });
 
 test('getRefreshInterval follows the low-frequency refresh policy', () => {

@@ -8,8 +8,7 @@ test('mergeSystemPreferences keeps persisted local toggles but reflects login it
     {
       isActive: true,
       pureMenuBarMode: true,
-      autoLaunchEnabled: false,
-      showMiniPanelOnTrayClick: true
+      autoLaunchEnabled: false
     },
     {
       autoLaunchEnabled: true
@@ -17,6 +16,5 @@ test('mergeSystemPreferences keeps persisted local toggles but reflects login it
   );
 
   assert.equal(merged.pureMenuBarMode, true);
-  assert.equal(merged.showMiniPanelOnTrayClick, true);
   assert.equal(merged.autoLaunchEnabled, true);
 });

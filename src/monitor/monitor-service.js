@@ -1,11 +1,11 @@
-import { summarizeUsage, getRefreshInterval } from '../core/quota-math.js';
+import { summarizeUsage, getRefreshInterval, buildUsageTrendHistory } from '../core/quota-math.js';
 import { mergeSystemPreferences } from '../core/system-preferences.js';
 import { predictFlow } from '../predictor/flow-predictor.js';
 import { buildIncrementalUsageRecords } from '../session/thread-usage-delta.js';
 import { createDatabase } from '../storage/database.js';
 import { createSnapshotSourceRouter } from '../session/snapshot-source-router.js';
 import { readLiveRateLimits } from '../session/codex-rate-limit-reader.js';
-import { writeDashboardArtifact } from '../utils/dashboard-artifact.js';
+import { readDashboardArtifact, writeDashboardArtifact } from '../utils/dashboard-artifact.js';
 
 const LEGACY_FIVE_HOUR_BUDGET = 10_000_000;
 const CALIBRATED_LOCAL_FIVE_HOUR_BUDGET = 25_071_924;
@@ -29,8 +29,7 @@ const DEFAULT_PREFERENCES = {
   closeToMenuBar: true,
   notificationsEnabled: true,
   autoLaunchEnabled: false,
-  pureMenuBarMode: false,
-  showMiniPanelOnTrayClick: true
+  pureMenuBarMode: true
 };
 
 function createRefreshState(overrides = {}) {
@@ -48,12 +47,20 @@ function computeIsStale({ lastSuccessfulRefreshAt, refreshInterval, now = new Da
   return now.getTime() - new Date(lastSuccessfulRefreshAt).getTime() >= refreshInterval;
 }
 
-export async function createMonitorService({ onUpdated, onNotify, logger, getSystemPreferences, applySystemPreferences }) {
-  const database = createDatabase();
-  const currentCwd = process.cwd();
+export async function createMonitorService({
+  onUpdated,
+  onNotify,
+  logger,
+  getSystemPreferences,
+  applySystemPreferences,
+  workspaceRoot = process.cwd(),
+  storageRoot = process.cwd()
+}) {
+  const database = createDatabase(storageRoot);
   let reader = createSnapshotSourceRouter({
     fiveHourBudget: DEFAULT_PREFERENCES.fiveHourBudget,
-    cwd: currentCwd
+    cwd: workspaceRoot,
+    baseDir: workspaceRoot
   });
   let refreshTimer = null;
   let dashboard = null;
@@ -95,8 +102,7 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
       closeToMenuBar: persisted.closeToMenuBar ?? DEFAULT_PREFERENCES.closeToMenuBar,
       notificationsEnabled: persisted.notificationsEnabled ?? DEFAULT_PREFERENCES.notificationsEnabled,
       autoLaunchEnabled: persisted.autoLaunchEnabled ?? DEFAULT_PREFERENCES.autoLaunchEnabled,
-      pureMenuBarMode: persisted.pureMenuBarMode ?? DEFAULT_PREFERENCES.pureMenuBarMode,
-      showMiniPanelOnTrayClick: persisted.showMiniPanelOnTrayClick ?? DEFAULT_PREFERENCES.showMiniPanelOnTrayClick
+      pureMenuBarMode: persisted.pureMenuBarMode ?? DEFAULT_PREFERENCES.pureMenuBarMode
     }, getSystemPreferences ? getSystemPreferences() : {});
   }
 
@@ -113,7 +119,15 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
       records: storedUsageRecords.length > 0 ? storedUsageRecords : snapshot.records,
       now
     });
-    const history = database.getRecentSnapshots(48);
+    const history = database.getRecentSnapshotsSince(new Date(now.getTime() - FIVE_HOUR_WINDOW_MS).toISOString());
+    const trendHistory = history.length > 1 && history.some((entry) => Number.isFinite(entry.remainingPercent))
+      ? history
+      : buildUsageTrendHistory({
+          limit: summary.limit,
+          now,
+          records: storedUsageRecords,
+          windowMs: FIVE_HOUR_WINDOW_MS
+        });
     const baseRefreshInterval = getRefreshInterval({
       isActive: preferences.isActive,
       isHighIntensity: preferences.isHighIntensity,
@@ -132,8 +146,27 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
       weeklySummary,
       prediction,
       refreshInterval,
-      history,
+      history: trendHistory,
       recentRecords: storedUsageRecords.slice(-12).reverse()
+    };
+  }
+
+  function buildUnavailableDashboard(preferences, sourceFile, overrides = {}) {
+    const now = new Date();
+    return {
+      refreshedAt: now.toISOString(),
+      source: {
+        label: overrides.sourceLabel ?? 'codex-account-rate-limits',
+        file: sourceFile
+      },
+      preferences,
+      summary: null,
+      weeklySummary: null,
+      prediction: null,
+      refreshInterval: overrides.refreshInterval ?? LIVE_RATE_LIMIT_REFRESH_FLOOR_MS,
+      history: [],
+      recentRecords: [],
+      isUnavailable: true
     };
   }
 
@@ -180,6 +213,11 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
   }
 
   function maybeNotify(currentDashboard) {
+    if (!currentDashboard.summary) {
+      lastNotifiedState = null;
+      return;
+    }
+
     if (!currentDashboard.preferences.notificationsEnabled) {
       lastNotifiedState = currentDashboard.summary.windowState;
       return;
@@ -271,7 +309,7 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
 
     try {
       try {
-        const liveRateLimits = await readLiveRateLimits({ cwd: currentCwd });
+        const liveRateLimits = await readLiveRateLimits({ cwd: workspaceRoot });
         const liveSnapshot = {
           sourceLabel: liveRateLimits.sourceLabel,
           limit: liveRateLimits.primary.limit,
@@ -311,41 +349,26 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
         refreshError = error?.message ?? String(error);
         logger.info({
           error: refreshError
-        }, 'live rate-limit read failed, falling back to local snapshot data');
+        }, 'live rate-limit read failed, falling back to cached dashboard or local snapshot data');
 
-        reader = createSnapshotSourceRouter({
-          fiveHourBudget: persistedPreferences.fiveHourBudget ?? DEFAULT_PREFERENCES.fiveHourBudget,
-          cwd: currentCwd
-        });
-        const { snapshot, sourceFile } = await reader.readSnapshot();
-        const preferences = mergePreferences(snapshot, persistedPreferences);
-        const shouldResetLocalUsageState = refreshState.lastSuccessfulRefreshAt
-          ? now.getTime() - new Date(refreshState.lastSuccessfulRefreshAt).getTime() >= FIVE_HOUR_WINDOW_MS
-          : false;
-
-        if (shouldResetLocalUsageState) {
-          database.clearUsageTracking();
+        const cachedDashboard = readDashboardArtifact(storageRoot);
+        if (cachedDashboard?.summary) {
+          dashboard = cachedDashboard;
+          refreshState = createRefreshState({
+            ...refreshState,
+            lastSuccessfulRefreshAt: cachedDashboard.refreshedAt ?? refreshState.lastSuccessfulRefreshAt
+          });
+          logger.info({
+            sourceLabel: cachedDashboard.source?.label ?? 'unknown'
+          }, 'using cached dashboard after live refresh failure');
+        } else {
+          const preferences = mergePreferences({
+            sourceLabel: 'codex-account-rate-limits',
+            limit: DEFAULT_PREFERENCES.fiveHourBudget,
+            isActive: true
+          }, persistedPreferences);
+          dashboard = buildUnavailableDashboard(preferences, 'codex app-server account/rateLimits/read');
         }
-
-        const usageRecords = materializeUsageRecords(snapshot, now);
-
-        database.saveUsageRecords(usageRecords);
-        const usageHistoryStart = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
-        const storedUsageRecords = database.getUsageRecordsSince(usageHistoryStart);
-
-        const summary = summarizeUsage({
-          limit: snapshot.limit,
-          now,
-          records: storedUsageRecords
-        });
-
-        database.saveSnapshot({
-          capturedAt: now.toISOString(),
-          summary,
-          sourceLabel: snapshot.sourceLabel
-        });
-
-        dashboard = buildDashboard(snapshot, preferences, sourceFile, summary, storedUsageRecords);
       }
 
       if (!dashboard) {
@@ -357,14 +380,14 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
         error: refreshError
       });
       dashboard = mergeDashboardRefreshState(dashboard);
-      writeDashboardArtifact(dashboard);
+      writeDashboardArtifact(dashboard, storageRoot);
       scheduleNextRefresh(dashboard);
       maybeNotify(dashboard);
       onUpdated(dashboard);
       logger.debug({
         reason,
         force,
-        remainingPercent: dashboard.summary.remainingPercent,
+        remainingPercent: dashboard.summary?.remainingPercent ?? null,
         sourceLabel: dashboard.source.label
       }, 'refresh success');
       return dashboard;
@@ -375,7 +398,7 @@ export async function createMonitorService({ onUpdated, onNotify, logger, getSys
       });
       if (dashboard) {
         dashboard = mergeDashboardRefreshState(dashboard);
-        writeDashboardArtifact(dashboard);
+        writeDashboardArtifact(dashboard, storageRoot);
         onUpdated(dashboard);
         scheduleNextRefresh(dashboard);
       }

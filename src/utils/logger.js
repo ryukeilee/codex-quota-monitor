@@ -47,8 +47,8 @@ function sanitizeArgs(args) {
   return args.map((arg) => sanitizeValue(arg));
 }
 
-export function createLogger() {
-  const logDir = path.join(process.cwd(), 'logs');
+export function createLogger(baseDir = process.cwd()) {
+  const logDir = path.join(baseDir, 'logs');
   fs.mkdirSync(logDir, { recursive: true });
 
   const baseLogger = pino({

@@ -1,6 +1,14 @@
+import fs from 'node:fs';
 import { spawn } from 'node:child_process';
+import path from 'node:path';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_CODEX_SEARCH_PATHS = [
+  '/opt/homebrew/bin',
+  '/usr/local/bin',
+  '/Applications/Codex.app/Contents/Resources',
+  '/Applications/Codex.app/Contents/MacOS'
+];
 
 function toIsoTimestamp(seconds) {
   if (typeof seconds !== 'number' || !Number.isFinite(seconds)) {
@@ -65,7 +73,7 @@ export function normalizeRateLimitsResponse(response) {
 }
 
 function createJsonRpcClient({ cwd, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
-  const child = spawn('codex', ['app-server', '--stdio'], {
+  const child = spawn(resolveCodexExecutablePath(), ['app-server', '--stdio'], {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe']
   });
@@ -195,6 +203,46 @@ function createJsonRpcClient({ cwd, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     request,
     ready
   };
+}
+
+export function resolveCodexExecutablePath({
+  env = process.env,
+  extraSearchPaths = []
+} = {}) {
+  const explicitPath = env.CODEX_BIN ?? env.CODEX_EXECUTABLE;
+  if (explicitPath && isExecutableFile(explicitPath)) {
+    return explicitPath;
+  }
+
+  const searchPaths = [
+    ...extraSearchPaths,
+    ...(env.PATH ? env.PATH.split(path.delimiter) : []),
+    ...DEFAULT_CODEX_SEARCH_PATHS
+  ];
+
+  for (const dir of searchPaths) {
+    if (!dir) {
+      continue;
+    }
+
+    const candidate = dir.endsWith('codex') ? dir : path.join(dir, 'codex');
+    if (isExecutableFile(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `unable to locate codex executable; checked CODEX_BIN/CODEX_EXECUTABLE, PATH, and ${DEFAULT_CODEX_SEARCH_PATHS.join(', ')}`
+  );
+}
+
+function isExecutableFile(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function readLiveRateLimits({ cwd = process.cwd(), timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {

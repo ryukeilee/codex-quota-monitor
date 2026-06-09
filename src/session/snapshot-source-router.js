@@ -7,7 +7,7 @@ export function createSnapshotSourceRouter(options = {}) {
       fiveHourBudget: options.fiveHourBudget,
       cwd: options.cwd
     }),
-    createLocalSnapshotReader()
+    createLocalSnapshotReader(options.baseDir)
   ];
 
   return {
@@ -23,7 +23,7 @@ export function createSnapshotSourceRouter(options = {}) {
         }
       }
 
-      return createLocalSnapshotReader().readSnapshot();
+      return createLocalSnapshotReader(options.baseDir).readSnapshot();
     }
   };
 }

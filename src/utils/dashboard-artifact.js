@@ -10,7 +10,15 @@ function formatRecovery(value) {
   return new Date(value).toLocaleString('zh-CN');
 }
 
+export function isLiveDashboard(dashboard) {
+  return dashboard?.source?.label === 'codex-account-rate-limits';
+}
+
 export function writeDashboardArtifact(dashboard, baseDir = process.cwd()) {
+  if (!isLiveDashboard(dashboard)) {
+    return;
+  }
+
   const dataDir = path.join(baseDir, 'data');
   fs.mkdirSync(dataDir, { recursive: true });
 
@@ -37,4 +45,19 @@ export function writeDashboardArtifact(dashboard, baseDir = process.cwd()) {
   ].join('\n');
 
   fs.writeFileSync(textPath, `${text}\n`);
+}
+
+export function readDashboardArtifact(baseDir = process.cwd()) {
+  const jsonPath = path.join(baseDir, 'data', 'latest-dashboard.json');
+
+  if (!fs.existsSync(jsonPath)) {
+    return null;
+  }
+
+  try {
+    const dashboard = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    return isLiveDashboard(dashboard) ? dashboard : null;
+  } catch {
+    return null;
+  }
 }

@@ -8,7 +8,9 @@
   "scripts": {
     "test": "node --test",
     "start": "electron .",
-    "dev": "electron ."
+    "dev": "electron .",
+    "build:app": "node ./scripts/build-macos-app.mjs",
+    "open:app": "open \"./dist/Codex Monitor.app\""
   },
   "dependencies": {
     "echarts": "^6.0.0",

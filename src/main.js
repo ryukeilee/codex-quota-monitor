@@ -1,21 +1,44 @@
 import { app, BrowserWindow, Menu, Notification, Tray, ipcMain, nativeImage, powerMonitor } from 'electron';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createMonitorService } from './monitor/monitor-service.js';
+import { resolveRuntimeRoots } from './core/runtime-roots.js';
 import { buildMenuBarState } from './notification/menu-bar-presenter.js';
+import { buildTrayIconSvg } from './utils/icon-assets.js';
 import { createLogger } from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const logger = createLogger();
+const fallbackLogger = {
+  info: (...args) => console.info(...args),
+  warn: (...args) => console.warn(...args),
+  error: (...args) => console.error(...args),
+  debug: (...args) => console.debug(...args)
+};
+
+let logger = fallbackLogger;
 let mainWindow = null;
-let miniPanelWindow = null;
 let tray = null;
 let monitorService = null;
 let isQuitting = false;
 let wakeRefreshTimers = [];
+
+function readRuntimeConfig() {
+  const runtimeConfigFile = path.join(app.getAppPath(), 'runtime-config.json');
+  if (!fs.existsSync(runtimeConfigFile)) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(runtimeConfigFile, 'utf8'));
+  } catch (error) {
+    fallbackLogger.warn('failed to read runtime config', error);
+    return {};
+  }
+}
 
 function clearWakeRefreshTimers({ reason, cause }) {
   if (wakeRefreshTimers.length > 0) {
@@ -33,13 +56,7 @@ function clearWakeRefreshTimers({ reason, cause }) {
 }
 
 function createTrayIcon() {
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
-      <rect x="3" y="10" width="2" height="5" rx="1" fill="black" />
-      <rect x="8" y="7" width="2" height="8" rx="1" fill="black" />
-      <rect x="13" y="4" width="2" height="11" rx="1" fill="black" />
-    </svg>
-  `.trim();
+  const svg = buildTrayIconSvg();
   const image = nativeImage
     .createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`)
     .resize({ width: 18, height: 18 });
@@ -85,10 +102,10 @@ function attachWebContentsDiagnostics(window, name) {
 
 async function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 820,
-    minWidth: 980,
-    minHeight: 720,
+    width: 1140,
+    height: 780,
+    minWidth: 920,
+    minHeight: 660,
     backgroundColor: '#f5f0e8',
     show: false,
     webPreferences: {
@@ -98,36 +115,6 @@ async function createMainWindow() {
 
   attachWebContentsDiagnostics(mainWindow, 'main');
   await mainWindow.loadFile(path.join(__dirname, 'ui', 'index.html'));
-}
-
-async function createMiniPanelWindow() {
-  miniPanelWindow = new BrowserWindow({
-    width: 360,
-    height: 520,
-    minWidth: 340,
-    minHeight: 480,
-    resizable: false,
-    maximizable: false,
-    minimizable: false,
-    fullscreenable: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    frame: false,
-    show: false,
-    movable: true,
-    backgroundColor: '#f5f0e8',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs')
-    }
-  });
-
-  attachWebContentsDiagnostics(miniPanelWindow, 'mini');
-  await miniPanelWindow.loadFile(path.join(__dirname, 'ui', 'mini-panel.html'));
-  miniPanelWindow.on('blur', () => {
-    if (miniPanelWindow && !miniPanelWindow.isDestroyed()) {
-      miniPanelWindow.hide();
-    }
-  });
 }
 
 function showMainWindow() {
@@ -152,20 +139,6 @@ function toggleMainWindow() {
   showMainWindow();
 }
 
-function toggleMiniPanel() {
-  if (!miniPanelWindow || miniPanelWindow.isDestroyed()) {
-    return;
-  }
-
-  if (miniPanelWindow.isVisible()) {
-    miniPanelWindow.hide();
-    return;
-  }
-
-  miniPanelWindow.show();
-  miniPanelWindow.focus();
-}
-
 function applyCloseToMenuBarBehavior(dashboard) {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
@@ -187,25 +160,11 @@ async function applyPresentationMode(preferences) {
     return;
   }
 
-  if (preferences.pureMenuBarMode) {
-    app.setActivationPolicy('accessory');
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.setSkipTaskbar(true);
-    }
-    if (miniPanelWindow && !miniPanelWindow.isDestroyed()) {
-      miniPanelWindow.setSkipTaskbar(true);
-    }
-    setTimeout(() => {
-      app.dock?.hide();
-    }, 1100);
-    return;
-  }
-
-  app.setActivationPolicy('regular');
-  await app.dock?.show();
+  app.setActivationPolicy('accessory');
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.setSkipTaskbar(false);
+    mainWindow.setSkipTaskbar(true);
   }
+  app.dock?.hide();
 }
 
 function getSystemPreferences() {
@@ -356,10 +315,6 @@ function updateTray(dashboard) {
       click: () => showMainWindow()
     },
     {
-      label: '显示 / 隐藏迷你统计面板',
-      click: () => toggleMiniPanel()
-    },
-    {
       type: 'checkbox',
       label: '菜单栏显示周百分比',
       checked: dashboard.preferences.showPercentageInMenuBar,
@@ -379,18 +334,6 @@ function updateTray(dashboard) {
         if (monitorService) {
           await monitorService.updatePreferences({
             closeToMenuBar: !dashboard.preferences.closeToMenuBar
-          });
-        }
-      }
-    },
-    {
-      type: 'checkbox',
-      label: '点击菜单栏打开迷你面板',
-      checked: dashboard.preferences.showMiniPanelOnTrayClick,
-      click: async () => {
-        if (monitorService) {
-          await monitorService.updatePreferences({
-            showMiniPanelOnTrayClick: !dashboard.preferences.showMiniPanelOnTrayClick
           });
         }
       }
@@ -418,9 +361,6 @@ function updateTray(dashboard) {
 function pushDashboardToWindows(dashboard) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('dashboard:updated', dashboard);
-  }
-  if (miniPanelWindow && !miniPanelWindow.isDestroyed()) {
-    miniPanelWindow.webContents.send('dashboard:updated', dashboard);
   }
 }
 
@@ -457,6 +397,14 @@ function showNotification(payload) {
 }
 
 async function bootstrap() {
+  const runtimeConfig = readRuntimeConfig();
+  const { workspaceRoot, storageRoot } = resolveRuntimeRoots({
+    runtimeConfig,
+    fallbackRoot: process.cwd()
+  });
+  const shouldShowMainWindow = process.env.CODEX_MONITOR_SHOW_MAIN_WINDOW === '1';
+  logger = createLogger(storageRoot);
+
   monitorService = await createMonitorService({
     onUpdated: (dashboard) => {
       updateTray(dashboard);
@@ -467,7 +415,9 @@ async function bootstrap() {
     onNotify: showNotification,
     logger,
     getSystemPreferences,
-    applySystemPreferences
+    applySystemPreferences,
+    workspaceRoot,
+    storageRoot
   });
 
   ipcMain.handle('dashboard:load', async () => monitorService.getDashboard());
@@ -488,34 +438,27 @@ async function bootstrap() {
 
   tray = new Tray(createTrayIcon());
   tray.setToolTip('Codex Monitor');
-  tray.on('click', async () => {
-    const dashboard = monitorService.getDashboard();
-    if (dashboard?.preferences.showMiniPanelOnTrayClick) {
-      toggleMiniPanel();
-      return;
-    }
-    toggleMainWindow();
-  });
   const dashboard = await monitorService.init();
   await createMainWindow();
-  await createMiniPanelWindow();
   updateTray(dashboard);
   syncDashboardWhenReady(mainWindow, dashboard);
-  syncDashboardWhenReady(miniPanelWindow, dashboard);
-  applyCloseToMenuBarBehavior(dashboard);
-  await applyPresentationMode(dashboard.preferences);
-  if (!dashboard.preferences.pureMenuBarMode && !getSystemPreferences().wasOpenedAtLogin) {
+  if (shouldShowMainWindow) {
     showMainWindow();
   }
+  applyCloseToMenuBarBehavior(dashboard);
+  await applyPresentationMode(dashboard.preferences);
 }
 
 app.whenReady().then(async () => {
+  if (process.platform === 'darwin') {
+    app.setActivationPolicy('accessory');
+    app.dock?.hide();
+  }
   await bootstrap();
 
 app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       await createMainWindow();
-      await createMiniPanelWindow();
     }
   });
 });

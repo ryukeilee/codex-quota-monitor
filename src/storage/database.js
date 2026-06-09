@@ -10,8 +10,8 @@ function parsePreferenceValue(value) {
   return JSON.parse(value);
 }
 
-export function createDatabase() {
-  const dataDir = path.join(process.cwd(), 'data');
+export function createDatabase(baseDir = process.cwd()) {
+  const dataDir = path.join(baseDir, 'data');
   fs.mkdirSync(dataDir, { recursive: true });
 
   const database = new DatabaseSync(path.join(dataDir, 'codex-monitor.db'));
@@ -104,6 +104,18 @@ export function createDatabase() {
         ORDER BY captured_at DESC
         LIMIT ?
       `).all(limit).reverse();
+    },
+    getRecentSnapshotsSince(since) {
+      return database.prepare(`
+        SELECT
+          captured_at AS capturedAt,
+          remaining_percent AS remainingPercent,
+          remaining_amount AS remaining,
+          used_amount AS used
+        FROM snapshots
+        WHERE captured_at >= ?
+        ORDER BY captured_at ASC
+      `).all(since);
     },
     getRecentUsageRecords(limit = 100) {
       return database.prepare(`

@@ -37,14 +37,11 @@ const elements = {
   recordList: document.getElementById('record-list'),
   preferencesForm: document.getElementById('preferences-form'),
   isActive: document.getElementById('is-active'),
-  isHighIntensity: document.getElementById('is-high-intensity'),
-  fiveHourBudget: document.getElementById('five-hour-budget'),
   showPercentageInMenuBar: document.getElementById('show-percentage-in-menu-bar'),
   closeToMenuBar: document.getElementById('close-to-menu-bar'),
   notificationsEnabled: document.getElementById('notifications-enabled'),
   autoLaunchEnabled: document.getElementById('auto-launch-enabled'),
-  pureMenuBarMode: document.getElementById('pure-menu-bar-mode'),
-  showMiniPanelOnTrayClick: document.getElementById('show-mini-panel-on-tray-click')
+  pureMenuBarMode: document.getElementById('pure-menu-bar-mode')
 };
 
 function formatTime(value) {
@@ -93,6 +90,10 @@ function formatRecommendedIntensity(value) {
   return '暂无';
 }
 
+function formatTokenCount(value) {
+  return Number(value).toLocaleString('zh-CN');
+}
+
 function renderHistory(history) {
   if (!chart) {
     return;
@@ -128,6 +129,7 @@ function renderHistory(history) {
     },
     series: [
       {
+        name: '5 小时剩余',
         type: 'line',
         smooth: true,
         data: history.map((item) => item.remainingPercent),
@@ -150,7 +152,7 @@ function renderRecords(records) {
   elements.recordList.innerHTML = records.map((record) => `
     <article class="record-item">
       <div>
-        <div class="record-amount">-${record.amount}</div>
+        <div class="record-amount">消耗 ${formatTokenCount(record.amount)} tokens</div>
         <div class="record-meta">${record.model} / ${record.intensity}</div>
       </div>
       <div class="record-meta">${formatTime(record.at)}</div>
@@ -159,7 +161,41 @@ function renderRecords(records) {
 }
 
 function renderDashboard(dashboard) {
-  if (!dashboard?.summary) {
+  if (!dashboard) {
+    return;
+  }
+
+  if (!dashboard.summary) {
+    elements.remainingPercent.textContent = '--';
+    elements.remainingDetail.textContent = '暂无可用的实时额度数据';
+    elements.remainingPercentInline.textContent = '--';
+    elements.weeklyPercent.textContent = '--';
+    elements.weeklyDetail.textContent = '暂无可用的实时额度数据';
+    elements.weeklyPercentInline.textContent = '--';
+    elements.windowState.textContent = '暂无';
+    elements.windowDetail.textContent = '暂无可用的实时额度数据';
+    elements.windowStateInline.textContent = '暂无';
+    elements.recoveryTime.textContent = '--';
+    elements.recoveryDetail.textContent = '暂无可用的实时额度数据';
+    elements.recoveryTimeInline.textContent = '--';
+    elements.developmentState.textContent = formatDevelopmentState(dashboard.preferences);
+    elements.developmentDetail.textContent = '实时额度读取失败，当前仅保留本地状态。';
+    elements.developmentStateInline.textContent = formatDevelopmentState(dashboard.preferences);
+    elements.liveSourceLabel.textContent = dashboard.source.label;
+    elements.liveSourceLabelTop.textContent = dashboard.source.label;
+    elements.flowHours.textContent = '暂无';
+    elements.flowDetail.textContent = '实时额度读取失败';
+    elements.refreshMeta.textContent = `最近刷新 ${formatTime(dashboard.refreshedAt)}`;
+    elements.trendSourceLabel.textContent = `5 小时数据源：${dashboard.source.label}`;
+    elements.recommendationText.textContent = '实时额度读取失败，请稍后重试。';
+    elements.isActive.checked = dashboard.preferences.isActive;
+    elements.showPercentageInMenuBar.checked = dashboard.preferences.showPercentageInMenuBar;
+    elements.closeToMenuBar.checked = dashboard.preferences.closeToMenuBar;
+    elements.notificationsEnabled.checked = dashboard.preferences.notificationsEnabled;
+    elements.autoLaunchEnabled.checked = dashboard.preferences.autoLaunchEnabled;
+    elements.pureMenuBarMode.checked = dashboard.preferences.pureMenuBarMode;
+    renderHistory([]);
+    renderRecords([]);
     return;
   }
 
@@ -195,17 +231,14 @@ function renderDashboard(dashboard) {
     : '充足';
   elements.flowDetail.textContent = `预测建议：${formatRecommendedIntensity(dashboard.prediction.recommendedIntensity)}`;
   elements.refreshMeta.textContent = `最近刷新 ${formatTime(dashboard.refreshedAt)}`;
-  elements.trendSourceLabel.textContent = `数据源：${dashboard.source.label}`;
+  elements.trendSourceLabel.textContent = `5 小时数据源：${dashboard.source.label}`;
   elements.recommendationText.textContent = `心流预测：${dashboard.prediction.recommendation}`;
   elements.isActive.checked = dashboard.preferences.isActive;
-  elements.isHighIntensity.checked = dashboard.preferences.isHighIntensity;
-  elements.fiveHourBudget.value = dashboard.preferences.fiveHourBudget;
   elements.showPercentageInMenuBar.checked = dashboard.preferences.showPercentageInMenuBar;
   elements.closeToMenuBar.checked = dashboard.preferences.closeToMenuBar;
   elements.notificationsEnabled.checked = dashboard.preferences.notificationsEnabled;
   elements.autoLaunchEnabled.checked = dashboard.preferences.autoLaunchEnabled;
   elements.pureMenuBarMode.checked = dashboard.preferences.pureMenuBarMode;
-  elements.showMiniPanelOnTrayClick.checked = dashboard.preferences.showMiniPanelOnTrayClick;
 
   renderHistory(dashboard.history);
   renderRecords(dashboard.recentRecords);
@@ -223,14 +256,11 @@ elements.preferencesForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const dashboard = await window.codexMonitor.updatePreferences({
     isActive: elements.isActive.checked,
-    isHighIntensity: elements.isHighIntensity.checked,
-    fiveHourBudget: Number(elements.fiveHourBudget.value),
     showPercentageInMenuBar: elements.showPercentageInMenuBar.checked,
     closeToMenuBar: elements.closeToMenuBar.checked,
     notificationsEnabled: elements.notificationsEnabled.checked,
     autoLaunchEnabled: elements.autoLaunchEnabled.checked,
-    pureMenuBarMode: elements.pureMenuBarMode.checked,
-    showMiniPanelOnTrayClick: elements.showMiniPanelOnTrayClick.checked
+    pureMenuBarMode: elements.pureMenuBarMode.checked
   });
   renderDashboard(dashboard);
 });

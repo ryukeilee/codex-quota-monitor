@@ -120,6 +120,31 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
   assert.equal(state.lines.weeklyResetLabel, '重置于 06/11 18:30');
 });
 
+test('buildMenuBarState handles unavailable live quota data gracefully', () => {
+  const state = buildMenuBarState({
+    refreshedAt: '2026-06-09T03:16:55.878Z',
+    source: {
+      label: 'codex-account-rate-limits',
+      file: 'codex app-server account/rateLimits/read'
+    },
+    summary: null,
+    weeklySummary: null,
+    prediction: null,
+    preferences: {
+      isActive: true,
+      isHighIntensity: false,
+      showPercentageInMenuBar: true
+    },
+    refreshInterval: 300000
+  });
+
+  assert.equal(state.title, '--');
+  assert.equal(state.toolTip, 'Codex Monitor：周额度剩余 暂无');
+  assert.equal(state.lines.weeklyLabel, '周额度 暂无 剩余');
+  assert.equal(state.lines.windowLabel, '5 小时窗口 暂无 剩余');
+  assert.equal(state.lines.recoveryLabel, '5 小时恢复 暂无');
+});
+
 test('formatRefreshLabel returns the low-frequency refresh label', () => {
   assert.equal(formatRefreshLabel(10 * 60 * 1000), '下次刷新约 10 分钟后');
   assert.equal(formatRefreshLabel(30 * 1000), '下次刷新约 30 秒后');

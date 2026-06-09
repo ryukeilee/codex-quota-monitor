@@ -68,7 +68,15 @@ function formatTrayTitle(summary, weeklySummary, preferences) {
     return '';
   }
 
+  if (!summary && !weeklySummary) {
+    return '--';
+  }
+
   const titleSummary = weeklySummary ?? summary;
+  if (!titleSummary) {
+    return '--';
+  }
+
   return `${titleSummary.remainingPercent}%`;
 }
 
@@ -81,10 +89,12 @@ export function formatRefreshLabel(intervalMs) {
 }
 
 export function buildMenuBarState(dashboard) {
-  const windowRemainingPercent = dashboard.summary.remainingPercent;
+  const windowRemainingPercent = dashboard.summary
+    ? `${dashboard.summary.remainingPercent}%`
+    : '暂无';
   const weeklyRemainingPercent = dashboard.weeklySummary
     ? `${dashboard.weeklySummary.remainingPercent}%`
-    : `${windowRemainingPercent}%`;
+    : (dashboard.summary ? `${dashboard.summary.remainingPercent}%` : '暂无');
   const weeklyResetAt = dashboard.weeklySummary?.nextRecoveryAt ?? null;
 
   return {
@@ -94,7 +104,7 @@ export function buildMenuBarState(dashboard) {
       weeklyLabel: `周额度 ${weeklyRemainingPercent} 剩余`,
       weeklyResetLabel: `重置于 ${formatShortDate(weeklyResetAt)}`,
       windowLabel: `5 小时窗口 ${formatUsageDetail(dashboard.summary)} 剩余`,
-      recoveryLabel: `5 小时恢复 ${formatDateTime(dashboard.summary.nextRecoveryAt)}`,
+      recoveryLabel: `5 小时恢复 ${formatDateTime(dashboard.summary?.nextRecoveryAt)}`,
       predictionLabel: `心流预测 ${formatPredictionState(dashboard.prediction)}`,
       developmentLabel: `开发状态 ${formatDevelopmentState(dashboard.preferences)}`,
       lastRefreshLabel: `最近刷新 ${formatClockTime(dashboard.refreshedAt)}`,

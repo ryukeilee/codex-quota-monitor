@@ -92,11 +92,11 @@
       </section>
 
       <section class="content-grid">
-        <article class="panel">
+        <article class="panel strategy-panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Trend</p>
-              <h3>剩余额度走势</h3>
+              <h3>5 小时内的剩余额度</h3>
             </div>
             <p id="trend-source-label" class="meta-text"></p>
           </div>
@@ -114,14 +114,6 @@
             <label class="toggle-row">
               <span>开发中</span>
               <input id="is-active" type="checkbox" />
-            </label>
-            <label class="toggle-row">
-              <span>高强度任务</span>
-              <input id="is-high-intensity" type="checkbox" />
-            </label>
-            <label class="toggle-row">
-              <span>5 小时本地预算</span>
-              <input id="five-hour-budget" type="number" min="1000" step="1000" />
             </label>
             <label class="toggle-row">
               <span>菜单栏显示剩余百分比</span>
@@ -143,10 +135,6 @@
               <span>纯菜单栏模式（隐藏 Dock）</span>
               <input id="pure-menu-bar-mode" type="checkbox" />
             </label>
-            <label class="toggle-row">
-              <span>点击菜单栏显示迷你面板</span>
-              <input id="show-mini-panel-on-tray-click" type="checkbox" />
-            </label>
             <button class="secondary-button" type="submit">保存刷新策略</button>
           </form>
 
@@ -155,12 +143,18 @@
             <h3>建议</h3>
             <p id="recommendation-text" class="recommendation-text"></p>
           </div>
-
-          <div class="records-box">
-            <p class="eyebrow">Recent Records</p>
-            <div id="record-list" class="record-list"></div>
-          </div>
         </article>
+      </section>
+
+      <section class="panel records-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Records</p>
+            <h3>Recent Records</h3>
+          </div>
+          <p class="meta-text">最近的窗口内消耗记录</p>
+        </div>
+        <div id="record-list" class="record-list"></div>
       </section>
     </main>
 

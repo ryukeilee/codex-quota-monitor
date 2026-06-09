@@ -30,14 +30,17 @@ function ensureSnapshotFile(filePath) {
   fs.writeFileSync(filePath, `${JSON.stringify(DEFAULT_FIXTURE, null, 2)}\n`);
 }
 
-export function createLocalSnapshotReader() {
-  const sourceFile = path.join(process.cwd(), 'data', 'source-snapshot.json');
-  const exampleFile = path.join(process.cwd(), 'config', 'source-snapshot.example.json');
+export function createLocalSnapshotReader(baseDir = process.cwd()) {
+  const sourceFile = path.join(baseDir, 'data', 'source-snapshot.json');
+  const exampleFile = path.join(baseDir, 'config', 'source-snapshot.example.json');
 
   ensureSnapshotFile(sourceFile);
   ensureSnapshotFile(exampleFile);
 
   return {
+    isAvailable() {
+      return fs.existsSync(sourceFile);
+    },
     readSnapshot() {
       const raw = fs.readFileSync(sourceFile, 'utf8');
       const snapshot = normalizeDemoSnapshot(JSON.parse(raw));
@@ -48,15 +51,6 @@ export function createLocalSnapshotReader() {
       };
     }
   }
-
-  return {
-    isAvailable() {
-      return fs.existsSync(sourceFile);
-    },
-    async readSnapshot() {
-      return readSnapshot();
-    }
-  };
 }
 
 export function normalizeDemoSnapshot(snapshot, now = new Date()) {

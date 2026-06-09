@@ -43,6 +43,14 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
       recommendedIntensity: 'current',
       recommendation: '当前消耗速度平稳，建议保持当前节奏。'
     },
+    flowAdvice: {
+      level: 'light',
+      title: '适合小步推进',
+      message: '额度还行，先做小任务或拆分推进。',
+      recommendedWork: ['小功能', '修 bug', '补测试'],
+      avoidWork: ['大重构', '跨模块改动'],
+      basedOnStaleData: false
+    },
     preferences: {
       isActive: true,
       isHighIntensity: false,
@@ -60,7 +68,7 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   assert.equal(state.lines.weeklyResetLabel, '重置于 06/11 18:30');
   assert.equal(state.lines.windowLabel, '5 小时窗口 64% 剩余');
   assert.equal(state.lines.recoveryLabel, '5 小时恢复 06/06 18:30');
-  assert.equal(state.lines.predictionLabel, '心流预测 保持当前节奏');
+  assert.equal(state.lines.predictionLabel, '开发心流建议 适合小步推进');
   assert.equal(state.lines.developmentLabel, '开发状态 开发中 · 轻强度');
   assert.equal(state.lines.lastRefreshLabel, '最近尝试 18:12:00');
   assert.equal(state.lines.lastSuccessLabel, '最近成功 18:12:00');
@@ -105,6 +113,14 @@ test('buildMenuBarState keeps the tray title as a plain percentage when quota is
       burnRatePerHour: 13.5,
       recommendedIntensity: 'low',
       recommendation: '建议降低推理强度，避免在当前窗口内撞到额度墙。'
+    },
+    flowAdvice: {
+      level: 'review_only',
+      title: '只做 Review / 收尾',
+      message: '额度很紧，适合 Review、规划、收尾。',
+      recommendedWork: ['Review', '规划', '收尾'],
+      avoidWork: ['新功能', '大重构'],
+      basedOnStaleData: false
     },
     preferences: {
       showPercentageInMenuBar: true
@@ -153,6 +169,14 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
       burnRatePerHour: 13.5,
       recommendedIntensity: 'low',
       recommendation: '建议降低推理强度，避免在当前窗口内撞到额度墙。'
+    },
+    flowAdvice: {
+      level: 'review_only',
+      title: '只做 Review / 收尾',
+      message: '额度很紧，适合 Review、规划、收尾。',
+      recommendedWork: ['Review', '规划', '收尾'],
+      avoidWork: ['新功能', '大重构'],
+      basedOnStaleData: false
     },
     preferences: {
       showPercentageInMenuBar: false

@@ -13,7 +13,7 @@
           <p class="eyebrow">Codex Monitor</p>
           <h1>把剩余额度变成稳定开发节奏</h1>
           <p class="hero-copy">
-            首版采用安全的本地快照读取方式，不碰私有接口，不做危险注入，专注于周额度、5 小时窗口、消耗趋势和心流预测。
+            首版采用安全的本地快照读取方式，不碰私有接口，不做危险注入，专注于周额度、5 小时窗口、消耗趋势和本地规则型开发心流建议。
           </p>
         </div>
         <div class="hero-actions">
@@ -45,7 +45,7 @@
           <p id="recovery-detail" class="metric-detail"></p>
         </article>
         <article class="metric-card">
-          <p class="metric-label">心流预测</p>
+          <p class="metric-label">开发心流建议</p>
           <h2 id="flow-hours">--</h2>
           <p id="flow-detail" class="metric-detail"></p>
         </article>
@@ -139,10 +139,22 @@
             <button class="secondary-button" type="submit">保存刷新策略</button>
           </form>
 
-          <div class="recommendation-box">
-            <p class="eyebrow">Forecast</p>
-            <h3>建议</h3>
+          <div id="flow-advice-box" class="recommendation-box">
+            <p class="eyebrow">Flow Advice</p>
+            <h3 id="flow-advice-title">建议</h3>
+            <p id="flow-advice-state" class="flow-advice-state"></p>
             <p id="recommendation-text" class="recommendation-text"></p>
+            <p id="flow-advice-meta" class="meta-text"></p>
+            <div class="advice-grid">
+              <div class="advice-group">
+                <p class="advice-group-label">推荐做</p>
+                <div id="flow-advice-recommended" class="advice-chips"></div>
+              </div>
+              <div class="advice-group">
+                <p class="advice-group-label">避免做</p>
+                <div id="flow-advice-avoid" class="advice-chips"></div>
+              </div>
+            </div>
           </div>
         </article>
       </section>

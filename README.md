@@ -11,7 +11,7 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - Local-first and privacy-first by design
 - Automatic refresh with low-frequency polling
 - Silent, tiered low-quota status in the tray menu
-- Dashboard view for reset timing, trends, and prediction hints
+- Dashboard view for reset timing, trends, and local flow advice hints
 - Auto-launch and pure menu bar mode support
 
 ## Quick Start
@@ -63,7 +63,7 @@ The fallback snapshot format is intentionally simple:
 ## System Tray
 
 - Shows weekly remaining quota as a plain native-style percentage
-- Surfaces reset timing, 5-hour window status, and a silent low-quota tier in a compact menu
+- Surfaces reset timing, 5-hour window status, a silent low-quota tier, and local flow advice in a compact menu
 - Keeps manual refresh separate from settings toggles
 - Opens the dashboard and preferences from the lower section
 
@@ -72,6 +72,7 @@ The fallback snapshot format is intentionally simple:
 - No browser session is required
 - No Chrome dependency is needed
 - The app reads local Codex state only
+- Flow advice is derived from local quota levels, freshness, and refresh state only
 - Refresh logs are redacted to avoid leaking tokens, cookies, or account details
 - Low-quota reminders stay quiet by default and are shown in the tray menu first
 - Runtime data and logs are kept out of version control
@@ -86,6 +87,7 @@ The fallback snapshot format is intentionally simple:
 - Screen unlock triggers a forced refresh
 - After a long sleep, stale local state is re-anchored to the current 5-hour window
 - Skipped or failed refreshes keep the timer chain alive
+- Flow advice stays short, local, and non-intrusive
 
 ## Development Rules
 

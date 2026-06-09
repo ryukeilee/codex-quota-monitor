@@ -342,6 +342,48 @@ body::after {
   border-radius: 16px;
 }
 
+.recommendation-box {
+  --flow-accent: var(--accent);
+  --flow-accent-soft: rgba(77, 242, 255, 0.16);
+  border-color: rgba(77, 242, 255, 0.14);
+}
+
+.recommendation-box[data-level='good'] {
+  --flow-accent: var(--success);
+  --flow-accent-soft: rgba(95, 240, 181, 0.16);
+  border-color: rgba(95, 240, 181, 0.22);
+}
+
+.recommendation-box[data-level='light'] {
+  --flow-accent: var(--accent);
+  --flow-accent-soft: rgba(77, 242, 255, 0.16);
+}
+
+.recommendation-box[data-level='careful'] {
+  --flow-accent: var(--warn);
+  --flow-accent-soft: rgba(255, 184, 107, 0.16);
+  border-color: rgba(255, 184, 107, 0.22);
+}
+
+.recommendation-box[data-level='review_only'],
+.recommendation-box[data-level='unknown'] {
+  --flow-accent: var(--accent-2);
+  --flow-accent-soft: rgba(155, 123, 255, 0.16);
+  border-color: rgba(155, 123, 255, 0.22);
+}
+
+.recommendation-box::after {
+  content: "";
+  position: absolute;
+  inset: auto 14px 14px auto;
+  width: 88px;
+  height: 88px;
+  border-radius: 999px;
+  background: radial-gradient(circle, var(--flow-accent-soft) 0%, transparent 68%);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
 .records-panel {
   margin-top: 18px;
   padding: 18px 18px 20px;
@@ -354,6 +396,65 @@ body::after {
 
 .recommendation-text {
   margin: 0;
+}
+
+.flow-advice-state {
+  margin: 2px 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--flow-accent-soft), rgba(255, 255, 255, 0.02));
+  border: 1px solid color-mix(in srgb, var(--flow-accent) 28%, transparent);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.flow-advice-state::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--flow-accent);
+  box-shadow: 0 0 10px var(--flow-accent);
+  flex: 0 0 auto;
+}
+
+.advice-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.advice-group {
+  padding-top: 8px;
+  border-top: 1px solid rgba(77, 242, 255, 0.1);
+}
+
+.advice-group-label {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.advice-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.advice-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(77, 242, 255, 0.1);
+  border: 1px solid rgba(77, 242, 255, 0.16);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
 }
 
 .record-list {

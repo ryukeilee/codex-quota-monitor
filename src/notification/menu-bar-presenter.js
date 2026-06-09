@@ -83,6 +83,14 @@ function formatPredictionState(prediction) {
   return '暂无';
 }
 
+function formatFlowAdviceState(flowAdvice, prediction) {
+  if (flowAdvice?.title) {
+    return flowAdvice.title;
+  }
+
+  return formatPredictionState(prediction);
+}
+
 function formatQuotaAlertLevel(level) {
   if (level === 'watch') {
     return '观察';
@@ -187,7 +195,7 @@ export function buildMenuBarState(dashboard) {
       weeklyResetLabel: `重置于 ${formatShortDate(weeklyResetAt)}`,
       windowLabel: `5 小时窗口 ${formatUsageDetail(dashboard.summary)} 剩余`,
       recoveryLabel: `5 小时恢复 ${formatDateTime(dashboard.summary?.nextRecoveryAt)}`,
-      predictionLabel: `心流预测 ${formatPredictionState(dashboard.prediction)}`,
+      predictionLabel: `开发心流建议 ${formatFlowAdviceState(dashboard.flowAdvice, dashboard.prediction)}`,
       developmentLabel: `开发状态 ${formatDevelopmentState(dashboard.preferences)}`,
       lastRefreshLabel: `最近尝试 ${formatTimeLabel(refreshStatus.lastAttemptAt ?? dashboard.lastRefreshStartedAt ?? dashboard.refreshedAt)}`,
       lastSuccessLabel: `最近成功 ${formatTimeLabel(refreshStatus.lastSuccessAt ?? dashboard.lastSuccessfulRefreshAt ?? dashboard.refreshedAt)}`,

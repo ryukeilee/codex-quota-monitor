@@ -2,6 +2,7 @@ import { summarizeUsage, getRefreshInterval, buildUsageTrendHistory } from '../c
 import { buildQuotaAlertStatus } from '../core/quota-alert.js';
 import { mergeSystemPreferences } from '../core/system-preferences.js';
 import { predictFlow } from '../predictor/flow-predictor.js';
+import { buildFlowAdvice } from '../predictor/flow-advice.js';
 import { buildIncrementalUsageRecords } from '../session/thread-usage-delta.js';
 import { createDatabase } from '../storage/database.js';
 import { createSnapshotSourceRouter } from '../session/snapshot-source-router.js';
@@ -100,6 +101,7 @@ export async function createMonitorService({
 
   function buildDashboard(snapshot, preferences, sourceFile, summary, storedUsageRecords, overrides = {}) {
     const now = new Date();
+    const sourceOrigin = overrides.sourceOrigin ?? 'codex_app_server';
     const weeklySummary = overrides.weeklySummary ?? summarizeUsage({
       limit: preferences.weeklyBudget ?? (preferences.fiveHourBudget * 7),
       now,
@@ -110,6 +112,12 @@ export async function createMonitorService({
       summary,
       records: storedUsageRecords.length > 0 ? storedUsageRecords : snapshot.records,
       now
+    });
+    const flowAdvice = buildFlowAdvice({
+      weeklySummary,
+      summary,
+      refreshStatus,
+      sourceOrigin
     });
     const history = database.getRecentSnapshotsSince(new Date(now.getTime() - FIVE_HOUR_WINDOW_MS).toISOString());
     const trendHistory = history.length > 1 && history.some((entry) => Number.isFinite(entry.remainingPercent))
@@ -126,7 +134,6 @@ export async function createMonitorService({
       remainingPercent: summary.remainingPercent
     });
     const refreshInterval = overrides.refreshInterval ?? baseRefreshInterval;
-    const sourceOrigin = overrides.sourceOrigin ?? 'codex_app_server';
 
     return {
       refreshedAt: now.toISOString(),
@@ -139,6 +146,7 @@ export async function createMonitorService({
       summary,
       weeklySummary,
       prediction,
+      flowAdvice,
       refreshInterval,
       history: trendHistory,
       recentRecords: storedUsageRecords.slice(-12).reverse()
@@ -158,6 +166,14 @@ export async function createMonitorService({
       summary: null,
       weeklySummary: null,
       prediction: null,
+      flowAdvice: buildFlowAdvice({
+        refreshStatus: createRefreshStatus({
+          phase: 'failed',
+          dataSource: 'unknown',
+          freshness: 'unknown'
+        }),
+        sourceOrigin: 'unknown'
+      }),
       refreshInterval: overrides.refreshInterval ?? LIVE_RATE_LIMIT_REFRESH_FLOOR_MS,
       history: [],
       recentRecords: [],

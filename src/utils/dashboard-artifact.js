@@ -32,6 +32,8 @@ export function writeDashboardArtifact(dashboard, baseDir = process.cwd()) {
     `已用额度: ${formatUsageDetail(dashboard.summary)}`,
     `周余额: ${dashboard.weeklySummary ? `${dashboard.weeklySummary.remainingPercent}%` : '暂无'}`,
     `周已用: ${dashboard.weeklySummary ? formatUsageDetail(dashboard.weeklySummary) : '暂无'}`,
+    `开发心流建议: ${dashboard.flowAdvice?.title ?? '暂无'}`,
+    `建议依据: ${dashboard.flowAdvice?.basedOnStaleData ? '偏旧数据' : '实时数据'}`,
     `窗口状态: ${dashboard.summary.windowState}`,
     `预计恢复: ${formatRecovery(dashboard.summary.nextRecoveryAt)}`,
     `刷新阶段: ${dashboard.refreshStatus?.phase ?? (dashboard.isRefreshing ? 'refreshing' : 'idle')}`,

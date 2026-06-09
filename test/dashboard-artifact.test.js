@@ -56,6 +56,14 @@ test('readDashboardArtifact returns the latest dashboard snapshot when present',
         recommendedIntensity: 'current',
         recommendation: '当前暂无消耗记录，继续观察即可。'
       },
+      flowAdvice: {
+        level: 'good',
+        title: '适合开大任务',
+        message: '额度充足，适合推进新功能或重构。',
+        recommendedWork: ['新功能', '重构', '长任务'],
+        avoidWork: ['频繁切换', '碎片化跟进'],
+        basedOnStaleData: false
+      },
       refreshInterval: 300000,
       history: [],
       recentRecords: []
@@ -68,6 +76,7 @@ test('readDashboardArtifact returns the latest dashboard snapshot when present',
     assert.deepEqual(result?.summary, dashboard.summary);
     assert.deepEqual(result?.weeklySummary, dashboard.weeklySummary);
     assert.equal(result?.source?.label, dashboard.source.label);
+    assert.deepEqual(result?.flowAdvice, dashboard.flowAdvice);
   } finally {
     fs.rmSync(baseDir, { recursive: true, force: true });
   }

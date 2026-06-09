@@ -38,6 +38,12 @@ const elements = {
   liveSourceLabelTop: document.getElementById('live-source-label-top'),
   flowHours: document.getElementById('flow-hours'),
   flowDetail: document.getElementById('flow-detail'),
+  flowAdviceTitle: document.getElementById('flow-advice-title'),
+  flowAdviceState: document.getElementById('flow-advice-state'),
+  flowAdviceMeta: document.getElementById('flow-advice-meta'),
+  flowAdviceRecommended: document.getElementById('flow-advice-recommended'),
+  flowAdviceAvoid: document.getElementById('flow-advice-avoid'),
+  flowAdviceBox: document.getElementById('flow-advice-box'),
   trendSourceLabel: document.getElementById('trend-source-label'),
   recommendationText: document.getElementById('recommendation-text'),
   recordList: document.getElementById('record-list'),
@@ -129,20 +135,40 @@ function formatDevelopmentState(preferences) {
   return preferences.isHighIntensity ? '开发中 · 高强度' : '开发中 · 轻强度';
 }
 
-function formatRecommendedIntensity(value) {
-  if (value === 'low') {
-    return '建议降速';
-  }
-
-  if (value === 'current') {
-    return '保持当前节奏';
-  }
-
-  return '暂无';
-}
-
 function formatTokenCount(value) {
   return Number(value).toLocaleString('zh-CN');
+}
+
+function formatAdviceMeta(advice) {
+  if (!advice) {
+    return '暂无';
+  }
+
+  return advice.basedOnStaleData ? '基于偏旧数据' : '基于实时数据';
+}
+
+function formatAdviceState(advice) {
+  if (!advice) {
+    return '暂无建议';
+  }
+
+  const levelLabelMap = {
+    good: '适合开大任务',
+    light: '适合小步推进',
+    careful: '先控范围',
+    review_only: '只做 Review / 收尾',
+    unknown: '先等数据'
+  };
+
+  return `${levelLabelMap[advice.level] ?? advice.title} · ${formatAdviceMeta(advice)}`;
+}
+
+function renderAdviceChips(container, values) {
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = (values ?? []).map((value) => `<span class="advice-chip">${value}</span>`).join('');
 }
 
 function renderHistory(history) {
@@ -216,8 +242,28 @@ function renderDashboard(dashboard) {
     return;
   }
 
+  const applyAdviceState = (advice) => {
+    if (!elements.flowAdviceBox) {
+      return;
+    }
+
+    const level = advice?.level ?? 'unknown';
+    elements.flowAdviceBox.dataset.level = level;
+    if (elements.flowAdviceState) {
+      elements.flowAdviceState.textContent = formatAdviceState(advice);
+    }
+  };
+
   if (!dashboard.summary) {
     const failureLine = formatFailureLine(dashboard);
+    const flowAdvice = dashboard.flowAdvice ?? {
+      title: '先等数据',
+      message: '暂无足够本地数据，先刷新或做轻量 Review。',
+      recommendedWork: ['刷新数据', '轻量 Review'],
+      avoidWork: ['高成本改动'],
+      basedOnStaleData: true
+    };
+    applyAdviceState(flowAdvice);
     elements.remainingPercent.textContent = '--';
     elements.remainingDetail.textContent = '暂无可用的实时额度数据';
     elements.remainingPercentInline.textContent = '--';
@@ -236,11 +282,15 @@ function renderDashboard(dashboard) {
     elements.refreshStatus.textContent = `${formatStatusLine(dashboard)}${failureLine ? ` · ${failureLine}` : ''}`;
     elements.liveSourceLabel.textContent = dashboard.source.label;
     elements.liveSourceLabelTop.textContent = dashboard.source.label;
-    elements.flowHours.textContent = '暂无';
-    elements.flowDetail.textContent = '额度读取失败';
+    elements.flowHours.textContent = flowAdvice.title;
+    elements.flowDetail.textContent = formatAdviceMeta(flowAdvice);
     elements.refreshMeta.textContent = formatMetaLine(dashboard);
     elements.trendSourceLabel.textContent = `数据源：${dashboard.source.label}`;
-    elements.recommendationText.textContent = '读取失败，请稍后重试。';
+    elements.flowAdviceTitle.textContent = '建议详情';
+    elements.flowAdviceMeta.textContent = formatAdviceMeta(flowAdvice);
+    elements.recommendationText.textContent = flowAdvice.message;
+    renderAdviceChips(elements.flowAdviceRecommended, flowAdvice.recommendedWork);
+    renderAdviceChips(elements.flowAdviceAvoid, flowAdvice.avoidWork);
     elements.isActive.checked = dashboard.preferences.isActive;
     elements.showPercentageInMenuBar.checked = dashboard.preferences.showPercentageInMenuBar;
     elements.closeToMenuBar.checked = dashboard.preferences.closeToMenuBar;
@@ -280,13 +330,29 @@ function renderDashboard(dashboard) {
   elements.refreshStatus.textContent = formatStatusLine(dashboard);
   elements.liveSourceLabel.textContent = dashboard.source.label;
   elements.liveSourceLabelTop.textContent = dashboard.source.label;
-  elements.flowHours.textContent = Number.isFinite(dashboard.prediction.hoursRemaining)
-    ? `${dashboard.prediction.hoursRemaining} 小时`
-    : '充足';
-  elements.flowDetail.textContent = formatRecommendedIntensity(dashboard.prediction.recommendedIntensity);
+  const flowAdvice = dashboard.flowAdvice ?? {
+    title: dashboard.prediction?.recommendedIntensity === 'low'
+      ? '先收一点'
+      : '保持节奏',
+    message: dashboard.prediction?.recommendation ?? '建议保持当前节奏。',
+    recommendedWork: dashboard.prediction?.recommendedIntensity === 'low'
+      ? ['小任务', '修 bug']
+      : ['当前节奏'],
+    avoidWork: dashboard.prediction?.recommendedIntensity === 'low'
+      ? ['大重构']
+      : ['过度切换'],
+    basedOnStaleData: false
+  };
+  applyAdviceState(flowAdvice);
+  elements.flowHours.textContent = flowAdvice.title;
+  elements.flowDetail.textContent = formatAdviceMeta(flowAdvice);
+  elements.flowAdviceTitle.textContent = '建议详情';
+  elements.flowAdviceMeta.textContent = formatAdviceMeta(flowAdvice);
   elements.refreshMeta.textContent = formatMetaLine(dashboard);
   elements.trendSourceLabel.textContent = `数据源：${dashboard.source.label}`;
-  elements.recommendationText.textContent = dashboard.prediction.recommendation;
+  elements.recommendationText.textContent = flowAdvice.message;
+  renderAdviceChips(elements.flowAdviceRecommended, flowAdvice.recommendedWork);
+  renderAdviceChips(elements.flowAdviceAvoid, flowAdvice.avoidWork);
   elements.isActive.checked = dashboard.preferences.isActive;
   elements.showPercentageInMenuBar.checked = dashboard.preferences.showPercentageInMenuBar;
   elements.closeToMenuBar.checked = dashboard.preferences.closeToMenuBar;

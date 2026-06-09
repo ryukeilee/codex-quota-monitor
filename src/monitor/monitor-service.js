@@ -1,4 +1,5 @@
 import { summarizeUsage, getRefreshInterval, buildUsageTrendHistory } from '../core/quota-math.js';
+import { buildQuotaAlertStatus } from '../core/quota-alert.js';
 import { mergeSystemPreferences } from '../core/system-preferences.js';
 import { predictFlow } from '../predictor/flow-predictor.js';
 import { buildIncrementalUsageRecords } from '../session/thread-usage-delta.js';
@@ -6,6 +7,10 @@ import { createDatabase } from '../storage/database.js';
 import { createSnapshotSourceRouter } from '../session/snapshot-source-router.js';
 import { readLiveRateLimits } from '../session/codex-rate-limit-reader.js';
 import { readDashboardArtifact, writeDashboardArtifact } from '../utils/dashboard-artifact.js';
+import {
+  createRefreshStatus,
+  computeFreshness
+} from '../core/refresh-status.js';
 
 const LEGACY_FIVE_HOUR_BUDGET = 10_000_000;
 const CALIBRATED_LOCAL_FIVE_HOUR_BUDGET = 25_071_924;
@@ -13,13 +18,6 @@ const FIVE_HOUR_WINDOW_MS = 5 * 60 * 60 * 1000;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const LIVE_RATE_LIMIT_REFRESH_FLOOR_MS = 5 * 60 * 1000;
 const FORCE_DEDUPE_MS = 10_000;
-const REFRESH_STATE_DEFAULTS = {
-  isRefreshing: false,
-  lastSuccessfulRefreshAt: null,
-  lastRefreshStartedAt: null,
-  lastRefreshError: null,
-  lastForcedRefreshAt: null
-};
 const DEFAULT_PREFERENCES = {
   isActive: true,
   isHighIntensity: false,
@@ -27,17 +25,10 @@ const DEFAULT_PREFERENCES = {
   weeklyBudget: CALIBRATED_LOCAL_FIVE_HOUR_BUDGET * 7,
   showPercentageInMenuBar: true,
   closeToMenuBar: true,
-  notificationsEnabled: true,
+  notificationsEnabled: false,
   autoLaunchEnabled: false,
   pureMenuBarMode: true
 };
-
-function createRefreshState(overrides = {}) {
-  return {
-    ...REFRESH_STATE_DEFAULTS,
-    ...overrides
-  };
-}
 
 function computeIsStale({ lastSuccessfulRefreshAt, refreshInterval, now = new Date() }) {
   if (!lastSuccessfulRefreshAt) {
@@ -64,8 +55,9 @@ export async function createMonitorService({
   });
   let refreshTimer = null;
   let dashboard = null;
-  let refreshState = createRefreshState();
+  let refreshStatus = createRefreshStatus();
   let lastNotifiedState = null;
+  let lastForcedRefreshAt = null;
 
   function materializeUsageRecords(snapshot, now = new Date()) {
     if (snapshot.sourceLabel !== 'local-codex-session-state') {
@@ -80,8 +72,8 @@ export async function createMonitorService({
       records: snapshot.records,
       previousByThread,
       now,
-      resetState: refreshState.lastSuccessfulRefreshAt
-        ? now.getTime() - new Date(refreshState.lastSuccessfulRefreshAt).getTime() >= FIVE_HOUR_WINDOW_MS
+      resetState: refreshStatus.lastSuccessAt
+        ? now.getTime() - new Date(refreshStatus.lastSuccessAt).getTime() >= FIVE_HOUR_WINDOW_MS
         : false
     });
 
@@ -134,12 +126,14 @@ export async function createMonitorService({
       remainingPercent: summary.remainingPercent
     });
     const refreshInterval = overrides.refreshInterval ?? baseRefreshInterval;
+    const sourceOrigin = overrides.sourceOrigin ?? 'codex_app_server';
 
     return {
       refreshedAt: now.toISOString(),
       source: {
         label: overrides.sourceLabel ?? snapshot.sourceLabel,
-        file: sourceFile
+        file: sourceFile,
+        origin: sourceOrigin
       },
       preferences,
       summary,
@@ -157,7 +151,8 @@ export async function createMonitorService({
       refreshedAt: now.toISOString(),
       source: {
         label: overrides.sourceLabel ?? 'codex-account-rate-limits',
-        file: sourceFile
+        file: sourceFile,
+        origin: overrides.sourceOrigin ?? 'unknown'
       },
       preferences,
       summary: null,
@@ -170,46 +165,68 @@ export async function createMonitorService({
     };
   }
 
-  function mergeDashboardRefreshState(currentDashboard) {
-    if (!currentDashboard) {
-      return currentDashboard;
+  function inferDataSource(currentDashboard) {
+    const sourceOrigin = currentDashboard?.source?.origin;
+    if (sourceOrigin === 'codex_app_server' || sourceOrigin === 'local_snapshot' || sourceOrigin === 'memory_cache' || sourceOrigin === 'unknown') {
+      return sourceOrigin;
     }
 
-    return {
+    if (currentDashboard?.source?.label === 'local-codex-session-state' || currentDashboard?.source?.label === 'demo-local-snapshot') {
+      return 'local_snapshot';
+    }
+
+    if (currentDashboard?.summary && currentDashboard?.source?.label === 'codex-account-rate-limits') {
+      return 'codex_app_server';
+    }
+
+    return 'unknown';
+  }
+
+  function publishDashboard(currentDashboard) {
+    if (!currentDashboard) {
+      return;
+    }
+
+    const dataSource = refreshStatus.dataSource === 'unknown'
+      ? inferDataSource(currentDashboard)
+      : refreshStatus.dataSource;
+    const lastSuccessAt = refreshStatus.lastSuccessAt ?? currentDashboard.refreshedAt ?? null;
+    let phase = refreshStatus.phase;
+    if (refreshStatus.isRetryingAfterWake && phase !== 'refreshing') {
+      phase = 'sleep_recovering';
+    } else if (phase === 'sleep_recovering' && !refreshStatus.isRetryingAfterWake) {
+      phase = dataSource === 'memory_cache' || dataSource === 'local_snapshot'
+        ? 'using_snapshot'
+        : 'success';
+    }
+
+    dashboard = {
       ...currentDashboard,
-      ...refreshState,
+      source: {
+        ...currentDashboard.source,
+        origin: currentDashboard.source?.origin ?? dataSource
+      },
+      refreshStatus: createRefreshStatus({
+        ...refreshStatus,
+        phase,
+        dataSource,
+        freshness: computeFreshness({
+          lastSuccessAt,
+          refreshInterval: currentDashboard.refreshInterval
+        }),
+        lastSuccessAt
+      }),
+      isRefreshing: phase === 'refreshing',
+      lastSuccessfulRefreshAt: lastSuccessAt,
+      lastRefreshStartedAt: refreshStatus.lastAttemptAt,
+      lastRefreshError: refreshStatus.failureReason,
+      lastForcedRefreshAt,
       isStale: computeIsStale({
-        lastSuccessfulRefreshAt: refreshState.lastSuccessfulRefreshAt,
+        lastSuccessfulRefreshAt: lastSuccessAt,
         refreshInterval: currentDashboard.refreshInterval
       })
     };
-  }
-
-  function markRefreshStarted({ force = false } = {}) {
-    const startedAt = new Date().toISOString();
-    refreshState = createRefreshState({
-      ...refreshState,
-      isRefreshing: true,
-      lastRefreshStartedAt: startedAt,
-      lastRefreshError: null,
-      lastForcedRefreshAt: force ? startedAt : refreshState.lastForcedRefreshAt
-    });
-
-    if (dashboard) {
-      dashboard = mergeDashboardRefreshState(dashboard);
-      onUpdated(dashboard);
-    }
-
-    return startedAt;
-  }
-
-  function markRefreshFinished({ successAt = null, error = null } = {}) {
-    refreshState = createRefreshState({
-      ...refreshState,
-      isRefreshing: false,
-      lastSuccessfulRefreshAt: successAt ?? refreshState.lastSuccessfulRefreshAt,
-      lastRefreshError: error
-    });
+    onUpdated(dashboard);
   }
 
   function maybeNotify(currentDashboard) {
@@ -218,17 +235,24 @@ export async function createMonitorService({
       return;
     }
 
+    const weeklyRemainingPercent = currentDashboard.weeklySummary?.remainingPercent
+      ?? currentDashboard.summary.remainingPercent;
+    const quotaAlertStatus = buildQuotaAlertStatus({
+      weeklyRemainingPercent,
+      notificationsEnabled: currentDashboard.preferences.notificationsEnabled
+    });
+
     if (!currentDashboard.preferences.notificationsEnabled) {
-      lastNotifiedState = currentDashboard.summary.windowState;
+      lastNotifiedState = null;
       return;
     }
 
-    const state = currentDashboard.summary.windowState;
-    if (state === 'near_limit' && lastNotifiedState !== state) {
+    if (quotaAlertStatus.shouldShowNotification && lastNotifiedState !== quotaAlertStatus.level) {
       onNotify({
-        title: 'Codex 剩余额度偏低',
-        body: `当前仅剩 ${currentDashboard.summary.remainingPercent}% ，建议降低推理强度。`
+        title: 'Codex 周额度很低',
+        body: `当前仅剩 ${quotaAlertStatus.weeklyRemainingPercent}% ，建议尽快降频或暂停。`
       });
+      lastNotifiedState = quotaAlertStatus.level;
     }
 
     if (currentDashboard.summary.nextRecoveryAt && lastNotifiedState !== 'recovery') {
@@ -245,13 +269,22 @@ export async function createMonitorService({
       }
     }
 
-    lastNotifiedState = state;
+    lastNotifiedState = quotaAlertStatus.level;
   }
 
   function scheduleNextRefresh(currentDashboard) {
     if (refreshTimer) {
       clearTimeout(refreshTimer);
     }
+    const scheduledAt = new Date(Date.now() + currentDashboard.refreshInterval).toISOString();
+    refreshStatus = createRefreshStatus({
+      ...refreshStatus,
+      nextScheduledRefreshAt: scheduledAt
+    });
+    if (dashboard) {
+      publishDashboard(currentDashboard);
+    }
+
     refreshTimer = setTimeout(async () => {
       try {
         await refreshQuota({
@@ -266,14 +299,27 @@ export async function createMonitorService({
     }, currentDashboard.refreshInterval);
   }
 
-  async function refreshQuota({ reason = 'manual', force = false } = {}) {
-    if (refreshState.isRefreshing) {
+  async function refreshQuota({
+    reason = 'manual',
+    force = false,
+    isRetryingAfterWake = false,
+    retryAttempt = null
+  } = {}) {
+    const startedAt = new Date().toISOString();
+    const previousForcedRefreshAt = lastForcedRefreshAt;
+
+    if (refreshStatus.phase === 'refreshing') {
       logger.debug({
         reason,
         force,
         cause: 'in-flight'
       }, 'refresh skipped');
       if (dashboard) {
+        refreshStatus = createRefreshStatus({
+          ...refreshStatus,
+          lastAttemptAt: startedAt
+        });
+        publishDashboard(dashboard);
         scheduleNextRefresh(dashboard);
       }
       return dashboard;
@@ -281,8 +327,8 @@ export async function createMonitorService({
 
     const shouldDedupForcedRefresh = force && reason !== 'manual';
 
-    if (shouldDedupForcedRefresh && refreshState.lastForcedRefreshAt) {
-      const elapsedMs = Date.now() - new Date(refreshState.lastForcedRefreshAt).getTime();
+    if (shouldDedupForcedRefresh && previousForcedRefreshAt) {
+      const elapsedMs = Date.now() - new Date(previousForcedRefreshAt).getTime();
       if (elapsedMs < FORCE_DEDUPE_MS && dashboard) {
         logger.debug({
           reason,
@@ -291,10 +337,32 @@ export async function createMonitorService({
           elapsedMs
         }, 'refresh skipped');
         if (dashboard) {
+          refreshStatus = createRefreshStatus({
+            ...refreshStatus,
+            lastAttemptAt: startedAt
+          });
+          publishDashboard(dashboard);
           scheduleNextRefresh(dashboard);
         }
         return dashboard;
       }
+    }
+
+    refreshStatus = createRefreshStatus({
+      ...refreshStatus,
+      phase: 'refreshing',
+      lastAttemptAt: startedAt,
+      failureReason: null,
+      isRetryingAfterWake: refreshStatus.isRetryingAfterWake || isRetryingAfterWake || reason === 'resume' || reason === 'unlock',
+      retryAttempt: retryAttempt ?? refreshStatus.retryAttempt
+    });
+
+    if (force) {
+      lastForcedRefreshAt = startedAt;
+    }
+
+    if (dashboard) {
+      publishDashboard(dashboard);
     }
 
     logger.debug({
@@ -302,12 +370,14 @@ export async function createMonitorService({
       force
     }, 'refresh start');
 
-    markRefreshStarted({ force });
     const persistedPreferences = database.getPreferences();
     const now = new Date();
     let refreshError = null;
 
     try {
+      let refreshSource = 'codex_app_server';
+      let refreshAt = now.toISOString();
+
       try {
         const liveRateLimits = await readLiveRateLimits({ cwd: workspaceRoot });
         const liveSnapshot = {
@@ -342,32 +412,111 @@ export async function createMonitorService({
           {
             weeklySummary: liveRateLimits.secondary,
             sourceLabel: liveRateLimits.sourceLabel,
-            refreshInterval: liveRefreshInterval
+            refreshInterval: liveRefreshInterval,
+            sourceOrigin: 'codex_app_server'
           }
         );
+        refreshSource = 'codex_app_server';
+        refreshAt = dashboard.refreshedAt;
+        refreshStatus = createRefreshStatus({
+          ...refreshStatus,
+          phase: 'success',
+          dataSource: refreshSource,
+          lastSuccessAt: refreshAt,
+          lastFailureAt: refreshError ? now.toISOString() : refreshStatus.lastFailureAt,
+          failureReason: refreshError
+        });
       } catch (error) {
         refreshError = error?.message ?? String(error);
         logger.info({
           error: refreshError
         }, 'live rate-limit read failed, falling back to cached dashboard or local snapshot data');
 
-        const cachedDashboard = readDashboardArtifact(storageRoot);
-        if (cachedDashboard?.summary) {
-          dashboard = cachedDashboard;
-          refreshState = createRefreshState({
-            ...refreshState,
-            lastSuccessfulRefreshAt: cachedDashboard.refreshedAt ?? refreshState.lastSuccessfulRefreshAt
+        const snapshotResult = await reader.readSnapshot();
+        if (snapshotResult?.snapshot?.records?.length) {
+          const snapshot = snapshotResult.snapshot;
+          const preferences = mergePreferences(snapshot, persistedPreferences);
+          const storedUsageRecords = materializeUsageRecords(snapshot, now);
+          const summary = summarizeUsage({
+            limit: preferences.fiveHourBudget ?? snapshot.limit ?? DEFAULT_PREFERENCES.fiveHourBudget,
+            now,
+            records: storedUsageRecords
+          });
+          dashboard = buildDashboard(
+            snapshot,
+            preferences,
+            snapshotResult.sourceFile,
+            summary,
+            storedUsageRecords,
+            {
+              sourceLabel: snapshot.sourceLabel,
+              sourceOrigin: 'local_snapshot',
+              refreshInterval: getRefreshInterval({
+                isActive: preferences.isActive,
+                isHighIntensity: preferences.isHighIntensity,
+                remainingPercent: summary.remainingPercent
+              }),
+              weeklySummary: summarizeUsage({
+                limit: preferences.weeklyBudget ?? (preferences.fiveHourBudget * 7),
+                now,
+                records: storedUsageRecords,
+                windowMs: SEVEN_DAYS_MS
+              })
+            }
+          );
+          refreshSource = 'local_snapshot';
+          refreshAt = dashboard.refreshedAt;
+          refreshStatus = createRefreshStatus({
+            ...refreshStatus,
+            phase: 'using_snapshot',
+            dataSource: refreshSource,
+            lastSuccessAt: refreshAt,
+            lastFailureAt: now.toISOString(),
+            failureReason: refreshError
           });
           logger.info({
-            sourceLabel: cachedDashboard.source?.label ?? 'unknown'
-          }, 'using cached dashboard after live refresh failure');
+            sourceLabel: snapshot.sourceLabel ?? 'unknown'
+          }, 'using local snapshot after live refresh failure');
         } else {
-          const preferences = mergePreferences({
-            sourceLabel: 'codex-account-rate-limits',
-            limit: DEFAULT_PREFERENCES.fiveHourBudget,
-            isActive: true
-          }, persistedPreferences);
-          dashboard = buildUnavailableDashboard(preferences, 'codex app-server account/rateLimits/read');
+          const cachedDashboard = readDashboardArtifact(storageRoot);
+          if (cachedDashboard?.summary) {
+            dashboard = {
+              ...cachedDashboard,
+              source: {
+                ...cachedDashboard.source,
+                origin: 'memory_cache'
+              }
+            };
+            refreshSource = 'memory_cache';
+            refreshAt = cachedDashboard.refreshedAt ?? now.toISOString();
+            refreshStatus = createRefreshStatus({
+              ...refreshStatus,
+              phase: 'using_snapshot',
+              dataSource: refreshSource,
+              lastSuccessAt: refreshAt,
+              lastFailureAt: now.toISOString(),
+              failureReason: refreshError
+            });
+            logger.info({
+              sourceLabel: cachedDashboard.source?.label ?? 'unknown'
+            }, 'using cached dashboard after live refresh failure');
+          } else {
+            const preferences = mergePreferences({
+              sourceLabel: 'codex-account-rate-limits',
+              limit: DEFAULT_PREFERENCES.fiveHourBudget,
+              isActive: true
+            }, persistedPreferences);
+            dashboard = buildUnavailableDashboard(preferences, 'codex app-server account/rateLimits/read');
+            refreshSource = 'unknown';
+            refreshAt = now.toISOString();
+            refreshStatus = createRefreshStatus({
+              ...refreshStatus,
+              phase: 'failed',
+              dataSource: refreshSource,
+              lastFailureAt: refreshAt,
+              failureReason: refreshError ?? 'dashboard refresh failed'
+            });
+          }
         }
       }
 
@@ -375,15 +524,19 @@ export async function createMonitorService({
         throw new Error(refreshError ?? 'dashboard refresh failed');
       }
 
-      markRefreshFinished({
-        successAt: dashboard.refreshedAt,
-        error: refreshError
-      });
-      dashboard = mergeDashboardRefreshState(dashboard);
-      writeDashboardArtifact(dashboard, storageRoot);
+      dashboard = {
+        ...dashboard,
+        source: {
+          ...dashboard.source,
+          origin: dashboard.source?.origin ?? refreshSource
+        }
+      };
+      if (dashboard.summary) {
+        writeDashboardArtifact(dashboard, storageRoot);
+      }
       scheduleNextRefresh(dashboard);
       maybeNotify(dashboard);
-      onUpdated(dashboard);
+      publishDashboard(dashboard);
       logger.debug({
         reason,
         force,
@@ -393,13 +546,24 @@ export async function createMonitorService({
       return dashboard;
     } catch (error) {
       const errorMessage = error?.message ?? String(error);
-      markRefreshFinished({
-        error: errorMessage
+      refreshStatus = createRefreshStatus({
+        ...refreshStatus,
+        phase: dashboard?.summary ? 'using_snapshot' : 'failed',
+        lastFailureAt: new Date().toISOString(),
+        failureReason: errorMessage
       });
       if (dashboard) {
-        dashboard = mergeDashboardRefreshState(dashboard);
-        writeDashboardArtifact(dashboard, storageRoot);
-        onUpdated(dashboard);
+        dashboard = {
+          ...dashboard,
+          source: {
+            ...dashboard.source,
+            origin: dashboard.source?.origin ?? inferDataSource(dashboard)
+          }
+        };
+        if (dashboard.summary) {
+          writeDashboardArtifact(dashboard, storageRoot);
+        }
+        publishDashboard(dashboard);
         scheduleNextRefresh(dashboard);
       }
       logger.error({
@@ -441,6 +605,24 @@ export async function createMonitorService({
       });
     },
     getDashboard() {
+      return dashboard;
+    },
+    setRefreshContext(patch = {}) {
+      const nextPatch = {
+        ...patch
+      };
+
+      if (nextPatch.isRetryingAfterWake && !nextPatch.phase) {
+        nextPatch.phase = 'sleep_recovering';
+      }
+
+      refreshStatus = createRefreshStatus({
+        ...refreshStatus,
+        ...nextPatch
+      });
+      if (dashboard) {
+        publishDashboard(dashboard);
+      }
       return dashboard;
     },
     async refreshQuota(options = {}) {

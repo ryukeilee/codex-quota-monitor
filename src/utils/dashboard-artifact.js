@@ -15,7 +15,7 @@ export function isLiveDashboard(dashboard) {
 }
 
 export function writeDashboardArtifact(dashboard, baseDir = process.cwd()) {
-  if (!isLiveDashboard(dashboard)) {
+  if (!isLiveDashboard(dashboard) || !dashboard?.summary) {
     return;
   }
 
@@ -34,12 +34,17 @@ export function writeDashboardArtifact(dashboard, baseDir = process.cwd()) {
     `周已用: ${dashboard.weeklySummary ? formatUsageDetail(dashboard.weeklySummary) : '暂无'}`,
     `窗口状态: ${dashboard.summary.windowState}`,
     `预计恢复: ${formatRecovery(dashboard.summary.nextRecoveryAt)}`,
-    `刷新中: ${dashboard.isRefreshing ? '是' : '否'}`,
-    `最近成功刷新: ${formatRecovery(dashboard.lastSuccessfulRefreshAt)}`,
-    `最近开始刷新: ${formatRecovery(dashboard.lastRefreshStartedAt)}`,
-    `最近强制刷新: ${formatRecovery(dashboard.lastForcedRefreshAt)}`,
+    `刷新阶段: ${dashboard.refreshStatus?.phase ?? (dashboard.isRefreshing ? 'refreshing' : 'idle')}`,
+    `数据来源: ${dashboard.refreshStatus?.dataSource ?? 'unknown'}`,
+    `数据新鲜度: ${dashboard.refreshStatus?.freshness ?? 'unknown'}`,
+    `最近尝试刷新: ${formatRecovery(dashboard.refreshStatus?.lastAttemptAt ?? dashboard.lastRefreshStartedAt)}`,
+    `最近成功刷新: ${formatRecovery(dashboard.refreshStatus?.lastSuccessAt ?? dashboard.lastSuccessfulRefreshAt)}`,
+    `最近失败刷新: ${formatRecovery(dashboard.refreshStatus?.lastFailureAt ?? null)}`,
+    `下次计划刷新: ${formatRecovery(dashboard.refreshStatus?.nextScheduledRefreshAt ?? null)}`,
+    `是否唤醒恢复: ${dashboard.refreshStatus?.isRetryingAfterWake ? '是' : '否'}`,
+    `恢复重试次数: ${dashboard.refreshStatus?.retryAttempt ?? '暂无'}`,
     `是否过期: ${dashboard.isStale ? '是' : '否'}`,
-    `最近刷新错误: ${dashboard.lastRefreshError ?? '暂无'}`,
+    `最近刷新错误: ${dashboard.refreshStatus?.failureReason ?? dashboard.lastRefreshError ?? '暂无'}`,
     `数据源: ${dashboard.source.label}`,
     `最近刷新: ${new Date(dashboard.refreshedAt).toLocaleString('zh-CN')}`
   ].join('\n');

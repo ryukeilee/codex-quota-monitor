@@ -1,4 +1,9 @@
 import { formatUsageDetail } from '../utils/format-usage.js';
+import {
+  createRefreshStatus,
+  formatRefreshStatus,
+  computeFreshness
+} from '../core/refresh-status.js';
 
 let echarts = null;
 try {
@@ -12,6 +17,7 @@ const chart = echarts && chartElement ? echarts.init(chartElement) : null;
 
 const elements = {
   refreshButton: document.getElementById('refresh-button'),
+  refreshStatus: document.getElementById('refresh-status'),
   refreshMeta: document.getElementById('refresh-meta'),
   remainingPercent: document.getElementById('remaining-percent'),
   remainingDetail: document.getElementById('remaining-detail'),
@@ -55,6 +61,51 @@ function formatTime(value) {
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+function formatStatusLine(dashboard) {
+  const sourceData = dashboard?.refreshStatus?.dataSource
+    ?? dashboard?.source?.origin
+    ?? (dashboard?.summary ? 'codex_app_server' : 'unknown');
+  const lastSuccessAt = dashboard?.refreshStatus?.lastSuccessAt
+    ?? dashboard?.lastSuccessfulRefreshAt
+    ?? dashboard?.refreshedAt
+    ?? null;
+  const phase = dashboard?.refreshStatus?.phase
+    ?? (dashboard?.summary
+      ? (sourceData === 'local_snapshot' || sourceData === 'memory_cache' ? 'using_snapshot' : 'success')
+      : 'failed');
+  const refreshStatus = createRefreshStatus({
+    ...dashboard?.refreshStatus,
+    phase,
+    dataSource: sourceData,
+    lastSuccessAt,
+    freshness: dashboard?.refreshStatus?.freshness
+      ?? computeFreshness({
+        lastSuccessAt,
+        refreshInterval: dashboard?.refreshInterval
+      })
+  });
+  const labels = formatRefreshStatus(refreshStatus);
+
+  return `${labels.phaseLabel} · ${labels.dataSourceLabel} · ${labels.freshnessLabel}`;
+}
+
+function formatMetaLine(dashboard) {
+  const refreshStatus = createRefreshStatus(dashboard?.refreshStatus);
+  const attemptAt = formatTime(refreshStatus.lastAttemptAt ?? dashboard?.lastRefreshStartedAt ?? dashboard?.refreshedAt);
+  const successAt = formatTime(refreshStatus.lastSuccessAt ?? dashboard?.lastSuccessfulRefreshAt ?? dashboard?.refreshedAt);
+  const nextRefreshAt = formatTime(refreshStatus.nextScheduledRefreshAt);
+  return `尝试 ${attemptAt} · 成功 ${successAt} · 下次 ${nextRefreshAt}`;
+}
+
+function formatFailureLine(dashboard) {
+  const failureReason = dashboard?.refreshStatus?.failureReason;
+  if (!failureReason) {
+    return null;
+  }
+
+  return `刷新失败 · ${failureReason}`;
 }
 
 function formatDateTime(value) {
@@ -166,6 +217,7 @@ function renderDashboard(dashboard) {
   }
 
   if (!dashboard.summary) {
+    const failureLine = formatFailureLine(dashboard);
     elements.remainingPercent.textContent = '--';
     elements.remainingDetail.textContent = '暂无可用的实时额度数据';
     elements.remainingPercentInline.textContent = '--';
@@ -179,15 +231,16 @@ function renderDashboard(dashboard) {
     elements.recoveryDetail.textContent = '暂无可用的实时额度数据';
     elements.recoveryTimeInline.textContent = '--';
     elements.developmentState.textContent = formatDevelopmentState(dashboard.preferences);
-    elements.developmentDetail.textContent = '实时额度读取失败，当前仅保留本地状态。';
+    elements.developmentDetail.textContent = '实时额度读取失败，仅保留本地状态。';
     elements.developmentStateInline.textContent = formatDevelopmentState(dashboard.preferences);
+    elements.refreshStatus.textContent = `${formatStatusLine(dashboard)}${failureLine ? ` · ${failureLine}` : ''}`;
     elements.liveSourceLabel.textContent = dashboard.source.label;
     elements.liveSourceLabelTop.textContent = dashboard.source.label;
     elements.flowHours.textContent = '暂无';
-    elements.flowDetail.textContent = '实时额度读取失败';
-    elements.refreshMeta.textContent = `最近刷新 ${formatTime(dashboard.refreshedAt)}`;
-    elements.trendSourceLabel.textContent = `5 小时数据源：${dashboard.source.label}`;
-    elements.recommendationText.textContent = '实时额度读取失败，请稍后重试。';
+    elements.flowDetail.textContent = '额度读取失败';
+    elements.refreshMeta.textContent = formatMetaLine(dashboard);
+    elements.trendSourceLabel.textContent = `数据源：${dashboard.source.label}`;
+    elements.recommendationText.textContent = '读取失败，请稍后重试。';
     elements.isActive.checked = dashboard.preferences.isActive;
     elements.showPercentageInMenuBar.checked = dashboard.preferences.showPercentageInMenuBar;
     elements.closeToMenuBar.checked = dashboard.preferences.closeToMenuBar;
@@ -224,15 +277,16 @@ function renderDashboard(dashboard) {
     ? (dashboard.preferences.isHighIntensity ? '当前按高强度开发节奏运行' : '当前按常规开发节奏运行')
     : '当前处于暂停状态';
   elements.developmentStateInline.textContent = formatDevelopmentState(dashboard.preferences);
+  elements.refreshStatus.textContent = formatStatusLine(dashboard);
   elements.liveSourceLabel.textContent = dashboard.source.label;
   elements.liveSourceLabelTop.textContent = dashboard.source.label;
   elements.flowHours.textContent = Number.isFinite(dashboard.prediction.hoursRemaining)
     ? `${dashboard.prediction.hoursRemaining} 小时`
     : '充足';
-  elements.flowDetail.textContent = `预测建议：${formatRecommendedIntensity(dashboard.prediction.recommendedIntensity)}`;
-  elements.refreshMeta.textContent = `最近刷新 ${formatTime(dashboard.refreshedAt)}`;
-  elements.trendSourceLabel.textContent = `5 小时数据源：${dashboard.source.label}`;
-  elements.recommendationText.textContent = `心流预测：${dashboard.prediction.recommendation}`;
+  elements.flowDetail.textContent = formatRecommendedIntensity(dashboard.prediction.recommendedIntensity);
+  elements.refreshMeta.textContent = formatMetaLine(dashboard);
+  elements.trendSourceLabel.textContent = `数据源：${dashboard.source.label}`;
+  elements.recommendationText.textContent = dashboard.prediction.recommendation;
   elements.isActive.checked = dashboard.preferences.isActive;
   elements.showPercentageInMenuBar.checked = dashboard.preferences.showPercentageInMenuBar;
   elements.closeToMenuBar.checked = dashboard.preferences.closeToMenuBar;

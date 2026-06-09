@@ -53,6 +53,12 @@ function clearWakeRefreshTimers({ reason, cause }) {
     clearTimeout(timer);
   }
   wakeRefreshTimers = [];
+  if (monitorService) {
+    monitorService.setRefreshContext({
+      isRetryingAfterWake: false,
+      retryAttempt: null
+    });
+  }
 }
 
 function createTrayIcon() {
@@ -188,12 +194,21 @@ function scheduleWakeRefreshSequence(reason = 'resume') {
     cause: 'reschedule'
   });
 
+  if (monitorService) {
+    monitorService.setRefreshContext({
+      isRetryingAfterWake: true,
+      retryAttempt: 0
+    });
+  }
+
   logger.debug({
     reason,
     delaysMs: [5, 15, 30, 60].map((seconds) => seconds * 1000)
   }, 'wake retry scheduled');
 
-  for (const delayMs of [5, 15, 30, 60].map((seconds) => seconds * 1000)) {
+  const retryDelaysMs = [5, 15, 30, 60].map((seconds) => seconds * 1000);
+
+  for (const [index, delayMs] of retryDelaysMs.entries()) {
     const timer = setTimeout(async () => {
       if (!monitorService || isQuitting) {
         return;
@@ -201,9 +216,15 @@ function scheduleWakeRefreshSequence(reason = 'resume') {
 
       const beforeDashboard = monitorService.getDashboard();
       try {
+        monitorService.setRefreshContext({
+          isRetryingAfterWake: true,
+          retryAttempt: index + 1
+        });
         const nextDashboard = await monitorService.refreshQuota({
           reason,
           force: true,
+          isRetryingAfterWake: true,
+          retryAttempt: index + 1
         });
         const didRefreshQuotaValue = Boolean(
           nextDashboard &&
@@ -220,6 +241,17 @@ function scheduleWakeRefreshSequence(reason = 'resume') {
             reason,
             cause: 'quota-updated'
           });
+          if (monitorService) {
+            monitorService.setRefreshContext({
+              isRetryingAfterWake: false,
+              retryAttempt: null
+            });
+          }
+        } else if (index === retryDelaysMs.length - 1) {
+          monitorService.setRefreshContext({
+            isRetryingAfterWake: false,
+            retryAttempt: null
+          });
         }
       } catch (error) {
         logger.error({
@@ -227,6 +259,12 @@ function scheduleWakeRefreshSequence(reason = 'resume') {
           delayMs,
           error: error?.message ?? String(error)
         }, 'wake refresh sequence failed');
+        if (index === retryDelaysMs.length - 1 && monitorService) {
+          monitorService.setRefreshContext({
+            isRetryingAfterWake: false,
+            retryAttempt: null
+          });
+        }
       }
     }, delayMs);
 
@@ -245,7 +283,24 @@ function updateTray(dashboard) {
   tray.setToolTip(menuBarState.toolTip);
   tray.setContextMenu(Menu.buildFromTemplate([
     {
+      label: menuBarState.lines.statusLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.sourceLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.freshnessLabel,
+      enabled: false
+    },
+    { type: 'separator' },
+    {
       label: menuBarState.lines.weeklyLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.weeklyStatusLabel,
       enabled: false
     },
     {
@@ -257,7 +312,35 @@ function updateTray(dashboard) {
       enabled: false
     },
     {
+      label: menuBarState.lines.recoveryLabel,
+      enabled: false
+    },
+    {
       label: menuBarState.lines.lastRefreshLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.lastSuccessLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.lastFailureLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.wakeLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.nextRefreshLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.failureReasonLabel,
+      enabled: false
+    },
+    {
+      label: menuBarState.lines.refreshLabel,
       enabled: false
     },
     {

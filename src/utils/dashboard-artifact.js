@@ -37,6 +37,7 @@ export function writeDashboardArtifact(dashboard, baseDir = process.cwd()) {
     `窗口状态: ${dashboard.summary.windowState}`,
     `预计恢复: ${formatRecovery(dashboard.summary.nextRecoveryAt)}`,
     `刷新阶段: ${dashboard.refreshStatus?.phase ?? (dashboard.isRefreshing ? 'refreshing' : 'idle')}`,
+    `调度状态: ${dashboard.refreshStatus?.schedulerState ?? 'idle'}`,
     `数据来源: ${dashboard.refreshStatus?.dataSource ?? 'unknown'}`,
     `数据新鲜度: ${dashboard.refreshStatus?.freshness ?? 'unknown'}`,
     `最近尝试刷新: ${formatRecovery(dashboard.refreshStatus?.lastAttemptAt ?? dashboard.lastRefreshStartedAt)}`,

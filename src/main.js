@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createMonitorService } from './monitor/monitor-service.js';
+import { createRefreshScheduler } from './monitor/refresh-scheduler.js';
 import { resolveRuntimeRoots } from './core/runtime-roots.js';
 import { buildMenuBarState } from './notification/menu-bar-presenter.js';
 import { buildTrayIconSvg } from './utils/icon-assets.js';
@@ -23,8 +24,8 @@ let logger = fallbackLogger;
 let mainWindow = null;
 let tray = null;
 let monitorService = null;
+let refreshScheduler = null;
 let isQuitting = false;
-let wakeRefreshTimers = [];
 
 function readRuntimeConfig() {
   const runtimeConfigFile = path.join(app.getAppPath(), 'runtime-config.json');
@@ -37,27 +38,6 @@ function readRuntimeConfig() {
   } catch (error) {
     fallbackLogger.warn('failed to read runtime config', error);
     return {};
-  }
-}
-
-function clearWakeRefreshTimers({ reason, cause }) {
-  if (wakeRefreshTimers.length > 0) {
-    logger.debug({
-      reason,
-      cause,
-      clearedCount: wakeRefreshTimers.length
-    }, 'wake retry cleared');
-  }
-
-  for (const timer of wakeRefreshTimers) {
-    clearTimeout(timer);
-  }
-  wakeRefreshTimers = [];
-  if (monitorService) {
-    monitorService.setRefreshContext({
-      isRetryingAfterWake: false,
-      retryAttempt: null
-    });
   }
 }
 
@@ -188,88 +168,10 @@ async function applySystemPreferences(preferences) {
   await applyPresentationMode(preferences);
 }
 
-function scheduleWakeRefreshSequence(reason = 'resume') {
-  clearWakeRefreshTimers({
-    reason,
-    cause: 'reschedule'
-  });
-
-  if (monitorService) {
-    monitorService.setRefreshContext({
-      isRetryingAfterWake: true,
-      retryAttempt: 0
-    });
-  }
-
-  logger.debug({
-    reason,
-    delaysMs: [5, 15, 30, 60].map((seconds) => seconds * 1000)
-  }, 'wake retry scheduled');
-
-  const retryDelaysMs = [5, 15, 30, 60].map((seconds) => seconds * 1000);
-
-  for (const [index, delayMs] of retryDelaysMs.entries()) {
-    const timer = setTimeout(async () => {
-      if (!monitorService || isQuitting) {
-        return;
-      }
-
-      const beforeDashboard = monitorService.getDashboard();
-      try {
-        monitorService.setRefreshContext({
-          isRetryingAfterWake: true,
-          retryAttempt: index + 1
-        });
-        const nextDashboard = await monitorService.refreshQuota({
-          reason,
-          force: true,
-          isRetryingAfterWake: true,
-          retryAttempt: index + 1
-        });
-        const didRefreshQuotaValue = Boolean(
-          nextDashboard &&
-          beforeDashboard &&
-          (
-            nextDashboard.summary?.remainingPercent !== beforeDashboard.summary?.remainingPercent ||
-            nextDashboard.weeklySummary?.remainingPercent !== beforeDashboard.weeklySummary?.remainingPercent ||
-            nextDashboard.source?.label !== beforeDashboard.source?.label
-          )
-        );
-
-        if (didRefreshQuotaValue) {
-          clearWakeRefreshTimers({
-            reason,
-            cause: 'quota-updated'
-          });
-          if (monitorService) {
-            monitorService.setRefreshContext({
-              isRetryingAfterWake: false,
-              retryAttempt: null
-            });
-          }
-        } else if (index === retryDelaysMs.length - 1) {
-          monitorService.setRefreshContext({
-            isRetryingAfterWake: false,
-            retryAttempt: null
-          });
-        }
-      } catch (error) {
-        logger.error({
-          reason,
-          delayMs,
-          error: error?.message ?? String(error)
-        }, 'wake refresh sequence failed');
-        if (index === retryDelaysMs.length - 1 && monitorService) {
-          monitorService.setRefreshContext({
-            isRetryingAfterWake: false,
-            retryAttempt: null
-          });
-        }
-      }
-    }, delayMs);
-
-    wakeRefreshTimers.push(timer);
-  }
+async function updatePreferencesWithScheduler(preferences) {
+  const dashboard = await monitorService.updatePreferences(preferences);
+  refreshScheduler.start(dashboard);
+  return dashboard;
 }
 
 function updateTray(dashboard) {
@@ -303,7 +205,7 @@ function updateTray(dashboard) {
       label: '立即刷新',
       click: async () => {
         if (monitorService) {
-          await monitorService.refreshQuota({
+          await refreshScheduler.requestRefresh({
             reason: 'manual',
             force: true
           });
@@ -319,7 +221,7 @@ function updateTray(dashboard) {
       checked: dashboard.preferences.notificationsEnabled,
       click: async () => {
         if (monitorService) {
-          await monitorService.updatePreferences({
+          await updatePreferencesWithScheduler({
             notificationsEnabled: !dashboard.preferences.notificationsEnabled
           });
         }
@@ -331,7 +233,7 @@ function updateTray(dashboard) {
       checked: dashboard.preferences.autoLaunchEnabled,
       click: async () => {
         if (monitorService) {
-          await monitorService.updatePreferences({
+          await updatePreferencesWithScheduler({
             autoLaunchEnabled: !dashboard.preferences.autoLaunchEnabled
           });
         }
@@ -350,7 +252,7 @@ function updateTray(dashboard) {
       checked: dashboard.preferences.showPercentageInMenuBar,
       click: async () => {
         if (monitorService) {
-          await monitorService.updatePreferences({
+          await updatePreferencesWithScheduler({
             showPercentageInMenuBar: !dashboard.preferences.showPercentageInMenuBar
           });
         }
@@ -362,7 +264,7 @@ function updateTray(dashboard) {
       checked: dashboard.preferences.closeToMenuBar,
       click: async () => {
         if (monitorService) {
-          await monitorService.updatePreferences({
+          await updatePreferencesWithScheduler({
             closeToMenuBar: !dashboard.preferences.closeToMenuBar
           });
         }
@@ -374,7 +276,7 @@ function updateTray(dashboard) {
       checked: dashboard.preferences.pureMenuBarMode,
       click: async () => {
         if (monitorService) {
-          await monitorService.updatePreferences({
+          await updatePreferencesWithScheduler({
             pureMenuBarMode: !dashboard.preferences.pureMenuBarMode
           });
         }
@@ -449,26 +351,40 @@ async function bootstrap() {
     workspaceRoot,
     storageRoot
   });
+  refreshScheduler = createRefreshScheduler({
+    runRefresh: (options) => monitorService.refreshQuota(options),
+    onStateChange: (patch) => {
+      if (monitorService) {
+        monitorService.setRefreshContext(patch);
+      }
+    },
+    logger
+  });
 
   ipcMain.handle('dashboard:load', async () => monitorService.getDashboard());
   ipcMain.handle('dashboard:refresh', async (_event, options = {}) => (
-    monitorService.refreshQuota(options)
+    refreshScheduler.requestRefresh(options)
   ));
   ipcMain.handle('preferences:update', async (_, preferences) => (
-    monitorService.updatePreferences(preferences)
+    updatePreferencesWithScheduler(preferences)
   ));
 
-  powerMonitor.on('resume', async () => {
-    scheduleWakeRefreshSequence('resume');
+  powerMonitor.on('suspend', () => {
+    refreshScheduler.markSleeping();
   });
 
-  powerMonitor.on('unlock-screen', async () => {
-    scheduleWakeRefreshSequence('unlock');
+  powerMonitor.on('resume', () => {
+    refreshScheduler.resumeFromSleep('resume');
+  });
+
+  powerMonitor.on('unlock-screen', () => {
+    refreshScheduler.resumeFromSleep('unlock');
   });
 
   tray = new Tray(createTrayIcon());
   tray.setToolTip('Codex Monitor');
   const dashboard = await monitorService.init();
+  refreshScheduler.start(dashboard);
   await createMainWindow();
   updateTray(dashboard);
   syncDashboardWhenReady(mainWindow, dashboard);
@@ -501,10 +417,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', async () => {
   isQuitting = true;
-  clearWakeRefreshTimers({
-    reason: 'shutdown',
-    cause: 'before-quit'
-  });
+  refreshScheduler?.dispose();
   if (monitorService) {
     await monitorService.dispose();
   }

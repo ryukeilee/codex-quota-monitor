@@ -9,7 +9,7 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - Live Codex quota at a glance
 - Native-style menu bar display with a compact tray menu
 - Local-first and privacy-first by design
-- Automatic refresh with low-frequency polling
+- Automatic refresh with a unified low-frequency scheduler
 - Tray menu keeps only the most important snapshot: weekly quota, 5-hour window, status, and next refresh
 - Dashboard view for reset timing, trends, and local flow advice hints
 - Auto-launch and pure menu bar mode support
@@ -81,13 +81,14 @@ The fallback snapshot format is intentionally simple:
 
 ## Refresh Behavior
 
+- A single scheduler owns automatic, manual, deferred, and retry refreshes
 - Normal timer refresh runs every 5 minutes
 - Forced refreshes are deduped within 10 seconds
-- Mac wake events schedule retries at 5s, 15s, 30s, and 60s
-- Wake retry sequences stop after the first successful refresh
-- Screen unlock triggers a forced refresh
+- Sleep pauses the scheduler instead of letting background timers run
+- Mac wake and screen unlock resume with retries at 5s, 15s, 30s, and 60s
+- Wake retry sequences stop after the first successful live refresh
+- Failure paths enter backoff and keep the next refresh chain alive
 - After a long sleep, stale local state is re-anchored to the current 5-hour window
-- Skipped or failed refreshes keep the timer chain alive
 - Flow advice stays short, local, and non-intrusive
 
 ## Development Rules

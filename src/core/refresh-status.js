@@ -1,11 +1,22 @@
 const REFRESH_PHASES = new Set([
   'idle',
   'refreshing',
+  'paused',
+  'backoff',
+  'sleeping',
   'success',
   'failed',
   'using_snapshot',
   'sleep_recovering',
   'skipped'
+]);
+
+const SCHEDULER_STATES = new Set([
+  'idle',
+  'refreshing',
+  'paused',
+  'backoff',
+  'sleeping'
 ]);
 
 const DATA_SOURCES = new Set([
@@ -31,6 +42,7 @@ const DEFAULT_REFRESH_STATUS = {
   lastFailureAt: null,
   nextScheduledRefreshAt: null,
   failureReason: null,
+  schedulerState: 'idle',
   isRetryingAfterWake: false,
   retryAttempt: null
 };
@@ -60,6 +72,7 @@ export function createRefreshStatus(overrides = {}) {
     lastFailureAt: toIsoOrNull(overrides.lastFailureAt ?? DEFAULT_REFRESH_STATUS.lastFailureAt),
     nextScheduledRefreshAt: toIsoOrNull(overrides.nextScheduledRefreshAt ?? DEFAULT_REFRESH_STATUS.nextScheduledRefreshAt),
     failureReason: overrides.failureReason ?? DEFAULT_REFRESH_STATUS.failureReason,
+    schedulerState: normalizeValue(overrides.schedulerState ?? DEFAULT_REFRESH_STATUS.schedulerState, SCHEDULER_STATES, DEFAULT_REFRESH_STATUS.schedulerState),
     isRetryingAfterWake: Boolean(overrides.isRetryingAfterWake ?? DEFAULT_REFRESH_STATUS.isRetryingAfterWake),
     retryAttempt: overrides.retryAttempt ?? DEFAULT_REFRESH_STATUS.retryAttempt
   };
@@ -100,6 +113,12 @@ export function formatRefreshPhase(phase) {
   switch (phase) {
     case 'refreshing':
       return '刷新中';
+    case 'paused':
+      return '已暂停';
+    case 'backoff':
+      return '退避等待';
+    case 'sleeping':
+      return '睡眠中';
     case 'success':
       return '最近成功';
     case 'failed':

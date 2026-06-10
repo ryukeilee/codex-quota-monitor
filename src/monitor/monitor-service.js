@@ -54,7 +54,6 @@ export async function createMonitorService({
     cwd: workspaceRoot,
     baseDir: workspaceRoot
   });
-  let refreshTimer = null;
   let dashboard = null;
   let refreshStatus = createRefreshStatus();
   let lastNotifiedState = null;
@@ -288,33 +287,6 @@ export async function createMonitorService({
     lastNotifiedState = quotaAlertStatus.level;
   }
 
-  function scheduleNextRefresh(currentDashboard) {
-    if (refreshTimer) {
-      clearTimeout(refreshTimer);
-    }
-    const scheduledAt = new Date(Date.now() + currentDashboard.refreshInterval).toISOString();
-    refreshStatus = createRefreshStatus({
-      ...refreshStatus,
-      nextScheduledRefreshAt: scheduledAt
-    });
-    if (dashboard) {
-      publishDashboard(currentDashboard);
-    }
-
-    refreshTimer = setTimeout(async () => {
-      try {
-        await refreshQuota({
-          reason: 'timer',
-          force: false
-        });
-      } catch (error) {
-        logger.error({
-          error: error?.message ?? String(error)
-        }, 'scheduled refresh failed');
-      }
-    }, currentDashboard.refreshInterval);
-  }
-
   async function refreshQuota({
     reason = 'manual',
     force = false,
@@ -336,7 +308,6 @@ export async function createMonitorService({
           lastAttemptAt: startedAt
         });
         publishDashboard(dashboard);
-        scheduleNextRefresh(dashboard);
       }
       return dashboard;
     }
@@ -358,7 +329,6 @@ export async function createMonitorService({
             lastAttemptAt: startedAt
           });
           publishDashboard(dashboard);
-          scheduleNextRefresh(dashboard);
         }
         return dashboard;
       }
@@ -550,7 +520,6 @@ export async function createMonitorService({
       if (dashboard.summary) {
         writeDashboardArtifact(dashboard, storageRoot);
       }
-      scheduleNextRefresh(dashboard);
       maybeNotify(dashboard);
       publishDashboard(dashboard);
       logger.debug({
@@ -580,7 +549,6 @@ export async function createMonitorService({
           writeDashboardArtifact(dashboard, storageRoot);
         }
         publishDashboard(dashboard);
-        scheduleNextRefresh(dashboard);
       }
       logger.error({
         reason,
@@ -670,9 +638,6 @@ export async function createMonitorService({
       });
     },
     async dispose() {
-      if (refreshTimer) {
-        clearTimeout(refreshTimer);
-      }
       database.close();
     }
   };

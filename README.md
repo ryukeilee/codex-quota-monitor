@@ -10,7 +10,7 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - Native-style menu bar display with a compact tray menu
 - Local-first and privacy-first by design
 - Automatic refresh with low-frequency polling
-- Silent, tiered low-quota status in the tray menu
+- Tray menu keeps only the most important snapshot: weekly quota, 5-hour window, status, and next refresh
 - Dashboard view for reset timing, trends, and local flow advice hints
 - Auto-launch and pure menu bar mode support
 
@@ -63,7 +63,8 @@ The fallback snapshot format is intentionally simple:
 ## System Tray
 
 - Shows weekly remaining quota as a plain native-style percentage
-- Surfaces reset timing, 5-hour window status, a silent low-quota tier, and local flow advice in a compact menu
+- Surfaces a compact overview in the first section: weekly quota, 5-hour window, freshness/status, and next refresh
+- Keeps deeper details out of the first glance so the menu stays easy to scan
 - Keeps manual refresh separate from settings toggles
 - Opens the dashboard and preferences from the lower section
 

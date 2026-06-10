@@ -283,72 +283,19 @@ function updateTray(dashboard) {
   tray.setToolTip(menuBarState.toolTip);
   tray.setContextMenu(Menu.buildFromTemplate([
     {
+      label: menuBarState.lines.overviewLabel,
+      enabled: false
+    },
+    {
       label: menuBarState.lines.statusLabel,
       enabled: false
     },
     {
-      label: menuBarState.lines.sourceLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.freshnessLabel,
-      enabled: false
-    },
-    { type: 'separator' },
-    {
-      label: menuBarState.lines.weeklyLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.weeklyStatusLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.weeklyResetLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.windowLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.recoveryLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.lastRefreshLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.lastSuccessLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.lastFailureLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.wakeLabel,
+      label: menuBarState.lines.adviceLabel,
       enabled: false
     },
     {
       label: menuBarState.lines.nextRefreshLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.failureReasonLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.refreshLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.predictionLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.developmentLabel,
       enabled: false
     },
     { type: 'separator' },

@@ -59,21 +59,10 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   });
 
   assert.equal(state.title, '87%');
-  assert.equal(state.toolTip, 'Codex Monitor：周额度剩余 87% · 正常 · 最近成功 · 实时数据');
-  assert.equal(state.lines.statusLabel, '刷新状态 最近成功 · 实时数据 · 新鲜');
-  assert.equal(state.lines.sourceLabel, '当前数据 实时数据');
-  assert.equal(state.lines.freshnessLabel, '新鲜度 新鲜');
-  assert.equal(state.lines.weeklyLabel, '周额度 87% 剩余');
-  assert.equal(state.lines.weeklyStatusLabel, '额度状态 正常 · 周额度充足');
-  assert.equal(state.lines.weeklyResetLabel, '重置于 06/11 18:30');
-  assert.equal(state.lines.windowLabel, '5 小时窗口 64% 剩余');
-  assert.equal(state.lines.recoveryLabel, '5 小时恢复 06/06 18:30');
-  assert.equal(state.lines.predictionLabel, '开发心流建议 适合小步推进');
-  assert.equal(state.lines.developmentLabel, '开发状态 开发中 · 轻强度');
-  assert.equal(state.lines.lastRefreshLabel, '最近尝试 18:12:00');
-  assert.equal(state.lines.lastSuccessLabel, '最近成功 18:12:00');
-  assert.equal(state.lines.lastFailureLabel, '最近失败 暂无');
-  assert.equal(state.lines.wakeLabel, '唤醒恢复 否');
+  assert.equal(state.toolTip, 'Codex Monitor：周 87% · 5小时 64% · 正常 · 最近成功');
+  assert.equal(state.lines.overviewLabel, '周 87% · 5小时 64%');
+  assert.equal(state.lines.statusLabel, '状态 正常 · 实时数据 · 新鲜');
+  assert.equal(state.lines.adviceLabel, '建议 适合小步推进');
   assert.equal(state.lines.nextRefreshLabel, '下次刷新 18:17:00');
 });
 
@@ -129,8 +118,8 @@ test('buildMenuBarState keeps the tray title as a plain percentage when quota is
   });
 
   assert.equal(state.title, '87%');
-  assert.equal(state.lines.weeklyStatusLabel, '额度状态 正常 · 周额度充足');
-  assert.equal(state.lines.windowLabel, '5 小时窗口 12% 剩余');
+  assert.equal(state.lines.overviewLabel, '周 87% · 5小时 12%');
+  assert.equal(state.lines.statusLabel, '状态 正常 · 实时数据 · 新鲜');
 });
 
 test('buildMenuBarState hides title text when menu bar display is disabled', () => {
@@ -184,10 +173,8 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
   });
 
   assert.equal(state.title, '');
-  assert.equal(state.lines.recoveryLabel, '5 小时恢复 暂无');
-  assert.equal(state.lines.weeklyLabel, '周额度 87% 剩余');
-  assert.equal(state.lines.weeklyStatusLabel, '额度状态 正常 · 周额度充足');
-  assert.equal(state.lines.weeklyResetLabel, '重置于 06/11 18:30');
+  assert.equal(state.lines.overviewLabel, '周 87% · 5小时 12%');
+  assert.equal(state.lines.nextRefreshLabel, '下次刷新 18:17:00');
 });
 
 test('buildMenuBarState handles unavailable live quota data gracefully', () => {
@@ -221,11 +208,11 @@ test('buildMenuBarState handles unavailable live quota data gracefully', () => {
   });
 
   assert.equal(state.title, '--');
-  assert.equal(state.toolTip, 'Codex Monitor：周额度剩余 暂无 · 暂无 · 刷新失败 · 未知来源');
-  assert.equal(state.lines.weeklyLabel, '周额度 暂无 剩余');
-  assert.equal(state.lines.weeklyStatusLabel, '额度状态 暂无');
-  assert.equal(state.lines.windowLabel, '5 小时窗口 暂无 剩余');
-  assert.equal(state.lines.recoveryLabel, '5 小时恢复 暂无');
+  assert.equal(state.toolTip, 'Codex Monitor：周 暂无 · 5小时 暂无 · 暂无 · 刷新失败');
+  assert.equal(state.lines.overviewLabel, '周 暂无 · 5小时 暂无');
+  assert.equal(state.lines.statusLabel, '状态 暂无 · 未知来源 · 未知');
+  assert.equal(state.lines.adviceLabel, '建议 先等数据');
+  assert.equal(state.lines.nextRefreshLabel, '下次刷新 11:21:55');
 });
 
 test('formatRefreshLabel returns the low-frequency refresh label', () => {

@@ -1,4 +1,3 @@
-import { formatUsageDetail } from '../utils/format-usage.js';
 import { buildQuotaAlertStatus } from '../core/quota-alert.js';
 import {
   createRefreshStatus,
@@ -7,32 +6,6 @@ import {
   formatFreshness,
   computeFreshness
 } from '../core/refresh-status.js';
-
-function formatDateTime(value) {
-  if (!value) {
-    return '暂无';
-  }
-
-  return new Date(value).toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-
-function formatShortDate(value) {
-  if (!value) {
-    return '暂无';
-  }
-
-  return new Date(value).toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
 
 function formatClockTime(value) {
   if (!value) {
@@ -47,29 +20,9 @@ function formatClockTime(value) {
   });
 }
 
-function truncateLabel(value, maxLength = 18) {
-  if (!value) {
-    return '暂无';
-  }
-
-  if (value.length <= maxLength) {
-    return value;
-  }
-
-  return `${value.slice(0, maxLength - 1)}…`;
-}
-
-function formatDevelopmentState(preferences) {
-  if (!preferences?.isActive) {
-    return '已暂停';
-  }
-
-  return preferences.isHighIntensity ? '开发中 · 高强度' : '开发中 · 轻强度';
-}
-
 function formatPredictionState(prediction) {
   if (!prediction) {
-    return '暂无';
+    return '先等数据';
   }
 
   if (prediction.recommendedIntensity === 'low') {
@@ -80,7 +33,7 @@ function formatPredictionState(prediction) {
     return '保持当前节奏';
   }
 
-  return '暂无';
+  return '先等数据';
 }
 
 function formatFlowAdviceState(flowAdvice, prediction) {
@@ -113,6 +66,29 @@ function formatQuotaAlertLabel(quotaAlertStatus) {
   }
 
   return `${formatQuotaAlertLevel(quotaAlertStatus.level)} · ${quotaAlertStatus.message}`;
+}
+
+function formatOverviewLabel(summary, weeklySummary) {
+  const windowRemainingPercent = summary
+    ? `${summary.remainingPercent}%`
+    : '暂无';
+  const weeklyRemainingPercent = weeklySummary
+    ? `${weeklySummary.remainingPercent}%`
+    : (summary ? `${summary.remainingPercent}%` : '暂无');
+
+  return `周 ${weeklyRemainingPercent} · 5小时 ${windowRemainingPercent}`;
+}
+
+function formatStatusLabel(refreshStatus, quotaAlertStatus) {
+  const quotaLabel = quotaAlertStatus.shouldShowInMenu
+    ? formatQuotaAlertLevel(quotaAlertStatus.level)
+    : '暂无';
+
+  return `状态 ${quotaLabel} · ${formatDataSource(refreshStatus.dataSource)} · ${formatFreshness(refreshStatus.freshness)}`;
+}
+
+function formatAdviceLabel(flowAdvice, prediction) {
+  return `建议 ${formatFlowAdviceState(flowAdvice, prediction)}`;
 }
 
 function formatTrayTitle(summary, weeklySummary, preferences) {
@@ -168,13 +144,6 @@ export function buildMenuBarState(dashboard) {
       })
   });
   const refreshLabels = formatRefreshStatus(refreshStatus);
-  const windowRemainingPercent = dashboard.summary
-    ? `${dashboard.summary.remainingPercent}%`
-    : '暂无';
-  const weeklyRemainingPercent = dashboard.weeklySummary
-    ? `${dashboard.weeklySummary.remainingPercent}%`
-    : (dashboard.summary ? `${dashboard.summary.remainingPercent}%` : '暂无');
-  const weeklyResetAt = dashboard.weeklySummary?.nextRecoveryAt ?? null;
   const quotaAlertStatus = buildQuotaAlertStatus({
     weeklyRemainingPercent: dashboard.weeklySummary?.remainingPercent ?? dashboard.summary?.remainingPercent,
     notificationsEnabled: dashboard.preferences.notificationsEnabled
@@ -182,31 +151,18 @@ export function buildMenuBarState(dashboard) {
   const quotaAlertTooltipLabel = quotaAlertStatus.shouldShowInMenu
     ? formatQuotaAlertLevel(quotaAlertStatus.level)
     : '暂无';
+  const overviewLabel = formatOverviewLabel(dashboard.summary, dashboard.weeklySummary);
+  const statusLabel = formatStatusLabel(refreshStatus, quotaAlertStatus);
+  const adviceLabel = formatAdviceLabel(dashboard.flowAdvice, dashboard.prediction);
 
   return {
     title: formatTrayTitle(dashboard.summary, dashboard.weeklySummary, dashboard.preferences),
-    toolTip: `Codex Monitor：周额度剩余 ${weeklyRemainingPercent} · ${quotaAlertTooltipLabel} · ${refreshLabels.phaseLabel} · ${refreshLabels.dataSourceLabel}`,
+    toolTip: `Codex Monitor：${overviewLabel} · ${quotaAlertTooltipLabel} · ${refreshLabels.phaseLabel}`,
     lines: {
-      statusLabel: `刷新状态 ${refreshLabels.phaseLabel} · ${refreshLabels.dataSourceLabel} · ${refreshLabels.freshnessLabel}`,
-      sourceLabel: `当前数据 ${formatDataSource(refreshStatus.dataSource)}`,
-      freshnessLabel: `新鲜度 ${formatFreshness(refreshStatus.freshness)}`,
-      weeklyLabel: `周额度 ${weeklyRemainingPercent} 剩余`,
-      weeklyStatusLabel: `额度状态 ${formatQuotaAlertLabel(quotaAlertStatus)}`,
-      weeklyResetLabel: `重置于 ${formatShortDate(weeklyResetAt)}`,
-      windowLabel: `5 小时窗口 ${formatUsageDetail(dashboard.summary)} 剩余`,
-      recoveryLabel: `5 小时恢复 ${formatDateTime(dashboard.summary?.nextRecoveryAt)}`,
-      predictionLabel: `开发心流建议 ${formatFlowAdviceState(dashboard.flowAdvice, dashboard.prediction)}`,
-      developmentLabel: `开发状态 ${formatDevelopmentState(dashboard.preferences)}`,
-      lastRefreshLabel: `最近尝试 ${formatTimeLabel(refreshStatus.lastAttemptAt ?? dashboard.lastRefreshStartedAt ?? dashboard.refreshedAt)}`,
-      lastSuccessLabel: `最近成功 ${formatTimeLabel(refreshStatus.lastSuccessAt ?? dashboard.lastSuccessfulRefreshAt ?? dashboard.refreshedAt)}`,
-      lastFailureLabel: `最近失败 ${formatTimeLabel(refreshStatus.lastFailureAt)}`,
-      wakeLabel: refreshStatus.isRetryingAfterWake
-        ? `唤醒恢复 第 ${refreshStatus.retryAttempt ?? 1} 次`
-        : '唤醒恢复 否',
+      overviewLabel,
+      statusLabel,
+      adviceLabel,
       nextRefreshLabel: `下次刷新 ${formatTimeLabel(refreshStatus.nextScheduledRefreshAt)}`,
-      failureReasonLabel: refreshStatus.failureReason
-        ? `失败原因 ${truncateLabel(refreshStatus.failureReason, 22)}`
-        : '失败原因 暂无',
       refreshLabel: formatRefreshLabel(dashboard.refreshInterval)
     }
   };

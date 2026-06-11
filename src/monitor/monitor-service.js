@@ -3,6 +3,7 @@ import { buildQuotaAlertStatus } from '../core/quota-alert.js';
 import { mergeSystemPreferences } from '../core/system-preferences.js';
 import { predictFlow } from '../predictor/flow-predictor.js';
 import { buildFlowAdvice } from '../predictor/flow-advice.js';
+import { analyzeQuotaBurnRate } from '../predictor/quota-burn-rate.js';
 import { buildIncrementalUsageRecords } from '../session/thread-usage-delta.js';
 import { createDatabase } from '../storage/database.js';
 import { createSnapshotSourceRouter } from '../session/snapshot-source-router.js';
@@ -18,6 +19,7 @@ const CALIBRATED_LOCAL_FIVE_HOUR_BUDGET = 25_071_924;
 const FIVE_HOUR_WINDOW_MS = 5 * 60 * 60 * 1000;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const LIVE_RATE_LIMIT_REFRESH_FLOOR_MS = 5 * 60 * 1000;
+const REFRESH_RECOVERY_TIMEOUT_MS = 25 * 1000;
 const FORCE_DEDUPE_MS = 10_000;
 const DEFAULT_PREFERENCES = {
   isActive: true,
@@ -58,6 +60,50 @@ export async function createMonitorService({
   let refreshStatus = createRefreshStatus();
   let lastNotifiedState = null;
   let lastForcedRefreshAt = null;
+  let refreshRecoveryTimer = null;
+  let refreshRecoveryToken = 0;
+
+  function clearRefreshRecoveryTimer() {
+    if (refreshRecoveryTimer) {
+      clearTimeout(refreshRecoveryTimer);
+      refreshRecoveryTimer = null;
+    }
+  }
+
+  function scheduleRefreshRecoveryTimer() {
+    clearRefreshRecoveryTimer();
+    const token = ++refreshRecoveryToken;
+    refreshRecoveryTimer = setTimeout(() => {
+      if (token !== refreshRecoveryToken) {
+        return;
+      }
+
+      if (refreshStatus.phase !== 'refreshing' && refreshStatus.phase !== 'sleep_recovering') {
+        return;
+      }
+
+      logger.warn({
+        phase: refreshStatus.phase,
+        dataSource: refreshStatus.dataSource,
+        timeoutMs: REFRESH_RECOVERY_TIMEOUT_MS
+      }, 'refresh recovery timeout fired');
+
+      refreshStatus = createRefreshStatus({
+        ...refreshStatus,
+        phase: 'failed',
+        lastFailureAt: new Date().toISOString(),
+        failureReason: '刷新超时',
+        schedulerState: 'idle',
+        nextScheduledRefreshAt: null,
+        isRetryingAfterWake: false,
+        retryAttempt: null
+      });
+
+      if (dashboard) {
+        publishDashboard(dashboard);
+      }
+    }, REFRESH_RECOVERY_TIMEOUT_MS);
+  }
 
   function materializeUsageRecords(snapshot, now = new Date()) {
     if (snapshot.sourceLabel !== 'local-codex-session-state') {
@@ -119,6 +165,10 @@ export async function createMonitorService({
       sourceOrigin
     });
     const history = database.getRecentSnapshotsSince(new Date(now.getTime() - FIVE_HOUR_WINDOW_MS).toISOString());
+    const quotaBurnRate = analyzeQuotaBurnRate({
+      snapshots: database.getQuotaSnapshotsSince(new Date(now.getTime() - SEVEN_DAYS_MS).toISOString()),
+      now
+    });
     const trendHistory = history.length > 1 && history.some((entry) => Number.isFinite(entry.remainingPercent))
       ? history
       : buildUsageTrendHistory({
@@ -145,6 +195,7 @@ export async function createMonitorService({
       summary,
       weeklySummary,
       prediction,
+      quotaBurnRate,
       flowAdvice,
       refreshInterval,
       history: trendHistory,
@@ -297,6 +348,7 @@ export async function createMonitorService({
     const previousForcedRefreshAt = lastForcedRefreshAt;
 
     if (refreshStatus.phase === 'refreshing') {
+      scheduleRefreshRecoveryTimer();
       logger.debug({
         reason,
         force,
@@ -307,6 +359,7 @@ export async function createMonitorService({
           ...refreshStatus,
           lastAttemptAt: startedAt
         });
+        scheduleRefreshRecoveryTimer();
         publishDashboard(dashboard);
       }
       return dashboard;
@@ -323,14 +376,15 @@ export async function createMonitorService({
           cause: 'forced-deduped',
           elapsedMs
         }, 'refresh skipped');
-        if (dashboard) {
-          refreshStatus = createRefreshStatus({
-            ...refreshStatus,
-            lastAttemptAt: startedAt
-          });
-          publishDashboard(dashboard);
-        }
-        return dashboard;
+      if (dashboard) {
+        refreshStatus = createRefreshStatus({
+          ...refreshStatus,
+          lastAttemptAt: startedAt
+        });
+        scheduleRefreshRecoveryTimer();
+        publishDashboard(dashboard);
+      }
+      return dashboard;
       }
     }
 
@@ -342,6 +396,7 @@ export async function createMonitorService({
       isRetryingAfterWake: refreshStatus.isRetryingAfterWake || isRetryingAfterWake || reason === 'resume' || reason === 'unlock',
       retryAttempt: retryAttempt ?? refreshStatus.retryAttempt
     });
+    scheduleRefreshRecoveryTimer();
 
     if (force) {
       lastForcedRefreshAt = startedAt;
@@ -386,6 +441,8 @@ export async function createMonitorService({
         database.saveSnapshot({
           capturedAt: now.toISOString(),
           summary: liveRateLimits.primary,
+          weeklySummary: liveRateLimits.secondary,
+          window5hSummary: liveRateLimits.primary,
           sourceLabel: liveRateLimits.sourceLabel
         });
 
@@ -414,6 +471,7 @@ export async function createMonitorService({
           lastFailureAt: refreshError ? now.toISOString() : refreshStatus.lastFailureAt,
           failureReason: refreshError
         });
+        clearRefreshRecoveryTimer();
       } catch (error) {
         refreshError = error?.message ?? String(error);
         logger.info({
@@ -430,6 +488,19 @@ export async function createMonitorService({
             now,
             records: storedUsageRecords
           });
+          const weeklySummary = summarizeUsage({
+            limit: preferences.weeklyBudget ?? (preferences.fiveHourBudget * 7),
+            now,
+            records: storedUsageRecords,
+            windowMs: SEVEN_DAYS_MS
+          });
+          database.saveSnapshot({
+            capturedAt: now.toISOString(),
+            summary,
+            weeklySummary,
+            window5hSummary: summary,
+            sourceLabel: snapshot.sourceLabel
+          });
           dashboard = buildDashboard(
             snapshot,
             preferences,
@@ -444,12 +515,7 @@ export async function createMonitorService({
                 isHighIntensity: preferences.isHighIntensity,
                 remainingPercent: summary.remainingPercent
               }),
-              weeklySummary: summarizeUsage({
-                limit: preferences.weeklyBudget ?? (preferences.fiveHourBudget * 7),
-                now,
-                records: storedUsageRecords,
-                windowMs: SEVEN_DAYS_MS
-              })
+              weeklySummary
             }
           );
           refreshSource = 'local_snapshot';
@@ -462,6 +528,7 @@ export async function createMonitorService({
             lastFailureAt: now.toISOString(),
             failureReason: refreshError
           });
+          clearRefreshRecoveryTimer();
           logger.info({
             sourceLabel: snapshot.sourceLabel ?? 'unknown'
           }, 'using local snapshot after live refresh failure');
@@ -485,6 +552,7 @@ export async function createMonitorService({
               lastFailureAt: now.toISOString(),
               failureReason: refreshError
             });
+            clearRefreshRecoveryTimer();
             logger.info({
               sourceLabel: cachedDashboard.source?.label ?? 'unknown'
             }, 'using cached dashboard after live refresh failure');
@@ -504,6 +572,7 @@ export async function createMonitorService({
               lastFailureAt: refreshAt,
               failureReason: refreshError ?? 'dashboard refresh failed'
             });
+            clearRefreshRecoveryTimer();
           }
         }
       }
@@ -519,11 +588,11 @@ export async function createMonitorService({
           origin: dashboard.source?.origin ?? refreshSource
         }
       };
-      if (dashboard.summary) {
-        writeDashboardArtifact(dashboard, storageRoot);
-      }
       maybeNotify(dashboard);
       publishDashboard(dashboard);
+      if (dashboard?.summary) {
+        writeDashboardArtifact(dashboard, storageRoot);
+      }
       logger.debug({
         reason,
         force,
@@ -539,6 +608,7 @@ export async function createMonitorService({
         lastFailureAt: new Date().toISOString(),
         failureReason: errorMessage
       });
+      clearRefreshRecoveryTimer();
       if (dashboard) {
         dashboard = {
           ...dashboard,
@@ -548,8 +618,12 @@ export async function createMonitorService({
           }
         };
         if (dashboard.summary) {
+          publishDashboard(dashboard);
           writeDashboardArtifact(dashboard, storageRoot);
+        } else {
+          publishDashboard(dashboard);
         }
+      } else {
         publishDashboard(dashboard);
       }
       logger.error({
@@ -606,6 +680,11 @@ export async function createMonitorService({
         ...refreshStatus,
         ...nextPatch
       });
+      if (refreshStatus.phase === 'refreshing' || refreshStatus.phase === 'sleep_recovering') {
+        scheduleRefreshRecoveryTimer();
+      } else {
+        clearRefreshRecoveryTimer();
+      }
       if (dashboard) {
         publishDashboard(dashboard);
       }
@@ -640,6 +719,7 @@ export async function createMonitorService({
       });
     },
     async dispose() {
+      clearRefreshRecoveryTimer();
       database.close();
     }
   };

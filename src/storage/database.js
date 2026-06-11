@@ -50,6 +50,18 @@ export function createDatabase(baseDir = process.cwd()) {
     );
   `);
 
+  const snapshotColumns = new Set(
+    database.prepare('PRAGMA table_info(snapshots)').all().map((column) => column.name)
+  );
+
+  if (!snapshotColumns.has('weekly_remaining_percent')) {
+    database.exec('ALTER TABLE snapshots ADD COLUMN weekly_remaining_percent INTEGER');
+  }
+
+  if (!snapshotColumns.has('window5h_remaining_percent')) {
+    database.exec('ALTER TABLE snapshots ADD COLUMN window5h_remaining_percent INTEGER');
+  }
+
   return {
     close() {
       database.close();
@@ -60,7 +72,14 @@ export function createDatabase(baseDir = process.cwd()) {
         DELETE FROM thread_usage_state;
       `);
     },
-    saveSnapshot({ capturedAt, summary, sourceLabel }) {
+    saveSnapshot({
+      capturedAt,
+      summary,
+      weeklySummary = null,
+      window5hSummary = null,
+      sourceLabel
+    }) {
+      const effectiveWindowSummary = window5hSummary ?? summary;
       database.prepare(`
         INSERT INTO snapshots (
           captured_at,
@@ -68,18 +87,22 @@ export function createDatabase(baseDir = process.cwd()) {
           used_amount,
           remaining_amount,
           remaining_percent,
+          weekly_remaining_percent,
+          window5h_remaining_percent,
           window_state,
           next_recovery_at,
           source_label
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         capturedAt,
-        summary.limit,
-        summary.used,
-        summary.remaining,
-        summary.remainingPercent,
-        summary.windowState,
-        summary.nextRecoveryAt,
+        effectiveWindowSummary.limit,
+        effectiveWindowSummary.used,
+        effectiveWindowSummary.remaining,
+        effectiveWindowSummary.remainingPercent,
+        weeklySummary?.remainingPercent ?? null,
+        effectiveWindowSummary.remainingPercent,
+        effectiveWindowSummary.windowState,
+        effectiveWindowSummary.nextRecoveryAt,
         sourceLabel
       );
     },
@@ -98,6 +121,8 @@ export function createDatabase(baseDir = process.cwd()) {
         SELECT
           captured_at AS capturedAt,
           remaining_percent AS remainingPercent,
+          weekly_remaining_percent AS weeklyRemainingPercent,
+          window5h_remaining_percent AS window5hRemainingPercent,
           remaining_amount AS remaining,
           used_amount AS used
         FROM snapshots
@@ -110,8 +135,22 @@ export function createDatabase(baseDir = process.cwd()) {
         SELECT
           captured_at AS capturedAt,
           remaining_percent AS remainingPercent,
+          weekly_remaining_percent AS weeklyRemainingPercent,
+          window5h_remaining_percent AS window5hRemainingPercent,
           remaining_amount AS remaining,
           used_amount AS used
+        FROM snapshots
+        WHERE captured_at >= ?
+        ORDER BY captured_at ASC
+      `).all(since);
+    },
+    getQuotaSnapshotsSince(since) {
+      return database.prepare(`
+        SELECT
+          captured_at AS capturedAt,
+          weekly_remaining_percent AS weeklyRemainingPercent,
+          COALESCE(window5h_remaining_percent, remaining_percent) AS window5hRemainingPercent,
+          source_label AS sourceLabel
         FROM snapshots
         WHERE captured_at >= ?
         ORDER BY captured_at ASC

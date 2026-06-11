@@ -465,10 +465,16 @@ export async function readLiveRateLimits({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   authFilePath = path.join(os.homedir(), '.codex', 'auth.json'),
   baseUrl = DEFAULT_CHATGPT_BACKEND_URL,
-  fetchImpl = fetch
+  fetchImpl = fetch,
+  sourcePreference = 'auto'
 } = {}) {
   const auth = readAuthJson(authFilePath);
-  if (auth?.auth_mode === 'chatgpt') {
+  const canUseWham = auth?.auth_mode === 'chatgpt';
+  const effectiveSourcePreference = sourcePreference === 'auto'
+    ? (canUseWham ? 'wham_usage' : 'app_server')
+    : sourcePreference;
+
+  if (effectiveSourcePreference === 'wham_usage' && canUseWham) {
     try {
       return await fetchWhamUsageRateLimits({
         authFilePath,
@@ -477,13 +483,13 @@ export async function readLiveRateLimits({
         fetchImpl
       });
     } catch {
-      // Fall back to the local app-server only if the web source is unavailable.
+      // Fall through to the local app-server when explicitly preferred web data is unavailable.
     }
   }
 
-  const client = createJsonRpcClient({ cwd, timeoutMs });
-
+  let client = null;
   try {
+    client = createJsonRpcClient({ cwd, timeoutMs });
     await client.ready;
     const result = await client.request('account/rateLimits/read');
     const normalized = normalizeRateLimitsResponse(result);
@@ -492,7 +498,18 @@ export async function readLiveRateLimits({
     }
 
     return normalized;
+  } catch (error) {
+    if (canUseWham && effectiveSourcePreference !== 'wham_usage') {
+      return fetchWhamUsageRateLimits({
+        authFilePath,
+        baseUrl,
+        timeoutMs,
+        fetchImpl
+      });
+    }
+
+    throw error;
   } finally {
-    client.child.kill();
+    client?.child.kill();
   }
 }

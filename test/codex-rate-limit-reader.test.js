@@ -174,7 +174,7 @@ test('resolveNodeExecutablePath prefers an explicit executable path and keeps it
   assert.ok(spawnEnv.PATH.split(path.delimiter).includes(tempDir));
 });
 
-test('readLiveRateLimits prefers wham usage when ChatGPT auth is available', async () => {
+test('readLiveRateLimits prefers wham usage in auto mode for ChatGPT auth', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-auth-'));
   const authFilePath = path.join(tempDir, 'auth.json');
   const payload = {

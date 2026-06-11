@@ -35,9 +35,15 @@ const elements = {
   developmentDetail: document.getElementById('development-detail'),
   developmentStateInline: document.getElementById('development-state-inline'),
   liveSourceLabel: document.getElementById('live-source-label'),
-  liveSourceLabelTop: document.getElementById('live-source-label-top'),
   flowHours: document.getElementById('flow-hours'),
   flowDetail: document.getElementById('flow-detail'),
+  burnRateTitle: document.getElementById('burn-rate-title'),
+  burnRateDetail: document.getElementById('burn-rate-detail'),
+  burnRateLevelInline: document.getElementById('burn-rate-level-inline'),
+  burnRateHoursInline: document.getElementById('burn-rate-hours-inline'),
+  burnRateIntensityInline: document.getElementById('burn-rate-intensity-inline'),
+  burnRateMessage: document.getElementById('burn-rate-message'),
+  burnRateMeta: document.getElementById('burn-rate-meta'),
   flowAdviceTitle: document.getElementById('flow-advice-title'),
   flowAdviceState: document.getElementById('flow-advice-state'),
   flowAdviceMeta: document.getElementById('flow-advice-meta'),
@@ -172,6 +178,52 @@ function formatAdviceState(advice) {
   return `${levelLabelMap[advice.level] ?? advice.title} · ${formatAdviceMeta(advice)}`;
 }
 
+function formatBurnRateIntensity(result) {
+  if (!result) {
+    return '先观察';
+  }
+
+  if (result.recommendedIntensity === 'lower') {
+    return '建议降强度';
+  }
+
+  if (result.recommendedIntensity === 'current') {
+    return '保持当前';
+  }
+
+  return '先观察';
+}
+
+function formatBurnRateMeta(result) {
+  if (!result || !result.basedOnHours) {
+    return '基于本地快照持续观察';
+  }
+
+  const weeklyRate = Number.isFinite(result.weeklyBurnRatePerHour)
+    ? `周 ${result.weeklyBurnRatePerHour.toFixed(1)}%/h`
+    : '周 暂无';
+  const windowRate = Number.isFinite(result.window5hBurnRatePerHour)
+    ? `5小时 ${result.window5hBurnRatePerHour.toFixed(1)}%/h`
+    : '5小时 暂无';
+
+  return `基于近 ${Math.round(result.basedOnHours)} 小时快照 · ${weeklyRate} · ${windowRate}`;
+}
+
+function renderBurnRate(result) {
+  const title = result?.title ?? '先继续观察';
+  const detail = result?.estimatedTimeRemaining
+    ? `按当前速度约还能开发 ${result.estimatedTimeRemaining}`
+    : '本地快照还不够，暂时无法判断';
+
+  elements.burnRateTitle.textContent = title;
+  elements.burnRateDetail.textContent = detail;
+  elements.burnRateLevelInline.textContent = title;
+  elements.burnRateHoursInline.textContent = result?.estimatedTimeRemaining ?? '暂无';
+  elements.burnRateIntensityInline.textContent = formatBurnRateIntensity(result);
+  elements.burnRateMessage.textContent = result?.message ?? '本地快照还不够，暂时无法判断消耗速度。';
+  elements.burnRateMeta.textContent = formatBurnRateMeta(result);
+}
+
 function renderAdviceChips(container, values) {
   if (!container) {
     return;
@@ -185,23 +237,26 @@ function renderHistory(history) {
     return;
   }
 
+  const compactHistory = (history ?? []).slice(-6);
+
   chart.setOption({
     animation: false,
     grid: {
-      top: 24,
-      left: 48,
-      right: 24,
-      bottom: 36
+      top: 6,
+      left: 8,
+      right: 8,
+      bottom: 6
     },
     tooltip: {
-      trigger: 'axis'
+      show: false
     },
     xAxis: {
       type: 'category',
-      data: history.map((item) => formatTime(item.capturedAt)),
+      data: compactHistory.map((item) => formatTime(item.capturedAt)),
+      show: false,
       axisLine: {
         lineStyle: {
-          color: '#c8b9ad'
+          color: '#5cecff'
         }
       }
     },
@@ -209,8 +264,15 @@ function renderHistory(history) {
       type: 'value',
       min: 0,
       max: 100,
+      show: false,
       axisLabel: {
-        formatter: '{value}%'
+        formatter: '{value}%',
+        color: '#8ca0bb'
+      },
+      splitLine: {
+        lineStyle: {
+          color: 'rgba(92, 236, 255, 0.08)'
+        }
       }
     },
     series: [
@@ -218,16 +280,18 @@ function renderHistory(history) {
         name: '5 小时剩余',
         type: 'line',
         smooth: true,
-        data: history.map((item) => item.remainingPercent),
+        symbol: 'circle',
+        symbolSize: 5,
+        data: compactHistory.map((item) => item.remainingPercent),
         lineStyle: {
-          color: '#b65d3a',
-          width: 3
+          color: '#5cecff',
+          width: 2.5
         },
         itemStyle: {
-          color: '#b65d3a'
+          color: '#5cecff'
         },
         areaStyle: {
-          color: 'rgba(182, 93, 58, 0.12)'
+          color: 'rgba(92, 236, 255, 0.12)'
         }
       }
     ]
@@ -235,7 +299,9 @@ function renderHistory(history) {
 }
 
 function renderRecords(records) {
-  elements.recordList.innerHTML = records.map((record) => `
+  const compactRecords = (records ?? []).slice(0, 3);
+
+  elements.recordList.innerHTML = compactRecords.map((record) => `
     <article class="record-item">
       <div>
         <div class="record-amount">消耗 ${formatTokenCount(record.amount)} tokens</div>
@@ -293,9 +359,9 @@ function renderDashboard(dashboard) {
     elements.developmentStateInline.textContent = formatDevelopmentState(dashboard.preferences);
     elements.refreshStatus.textContent = `${formatStatusLine(dashboard)}${failureLine ? ` · ${failureLine}` : ''}`;
     elements.liveSourceLabel.textContent = dashboard.source.label;
-    elements.liveSourceLabelTop.textContent = dashboard.source.label;
     elements.flowHours.textContent = flowAdvice.title;
     elements.flowDetail.textContent = formatAdviceMeta(flowAdvice);
+    renderBurnRate(dashboard.quotaBurnRate);
     elements.refreshMeta.textContent = formatMetaLine(dashboard);
     elements.trendSourceLabel.textContent = `数据源：${dashboard.source.label}`;
     elements.flowAdviceTitle.textContent = '建议详情';
@@ -341,7 +407,6 @@ function renderDashboard(dashboard) {
   elements.developmentStateInline.textContent = formatDevelopmentState(dashboard.preferences);
   elements.refreshStatus.textContent = formatStatusLine(dashboard);
   elements.liveSourceLabel.textContent = dashboard.source.label;
-  elements.liveSourceLabelTop.textContent = dashboard.source.label;
   const flowAdvice = dashboard.flowAdvice ?? {
     title: dashboard.prediction?.recommendedIntensity === 'low'
       ? '先收一点'
@@ -358,6 +423,7 @@ function renderDashboard(dashboard) {
   applyAdviceState(flowAdvice);
   elements.flowHours.textContent = flowAdvice.title;
   elements.flowDetail.textContent = formatAdviceMeta(flowAdvice);
+  renderBurnRate(dashboard.quotaBurnRate);
   elements.flowAdviceTitle.textContent = '建议详情';
   elements.flowAdviceMeta.textContent = formatAdviceMeta(flowAdvice);
   elements.refreshMeta.textContent = formatMetaLine(dashboard);

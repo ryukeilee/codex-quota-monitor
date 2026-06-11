@@ -11,7 +11,9 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - Local-first and privacy-first by design
 - Automatic refresh with a unified low-frequency scheduler
 - Manual refresh shows a clear busy state so it is obvious when a refresh is in progress
-- Tray menu keeps only the most important snapshot: weekly quota, 5-hour window, status, and next refresh
+- Tray menu stays compact and only surfaces the most important status at a glance
+- HUD-style dashboard with a single-screen control layout, status radar, and reactor-like quota readout
+- Quota burn rate analysis that answers whether the current pace is too fast, how long it can last, and whether intensity should be lowered
 - Dashboard view for reset timing, trends, and local flow advice hints
 - Auto-launch and pure menu bar mode support
 
@@ -66,10 +68,17 @@ The fallback snapshot format is intentionally simple:
 ## System Tray
 
 - Shows weekly remaining quota as a plain native-style percentage
-- Surfaces a compact overview in the first section: weekly quota, 5-hour window, freshness/status, and next refresh
-- Keeps deeper details out of the first glance so the menu stays easy to scan
+- Surfaces a compact overview first so the tray stays easy to scan
+- Keeps deeper details out of the first glance
 - Keeps manual refresh separate from settings toggles
 - Opens the dashboard and preferences from the lower section
+
+## Dashboard
+
+- The main window uses a single-screen HUD layout rather than a tall scrolling page
+- The core readout centers on remaining quota, weekly quota, 5-hour window, burn rate, recovery timing, and development guidance
+- The history chart and recent records are secondary signals and stay visually compact
+- The styling intentionally leans into a high-contrast cyber / reactor-control aesthetic while keeping the information readable
 
 ## Privacy and Storage
 
@@ -94,6 +103,7 @@ The fallback snapshot format is intentionally simple:
 - Failure paths enter backoff and keep the next refresh chain alive
 - After a long sleep, stale local state is re-anchored to the current 5-hour window
 - Flow advice stays short, local, and non-intrusive
+- Burn-rate analysis is computed locally from quota snapshots only and does not inspect chats, prompts, or code content
 
 ## Development Rules
 

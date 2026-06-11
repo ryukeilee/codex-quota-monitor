@@ -11,6 +11,7 @@ const DEFAULT_WAKE_RETRY_DELAYS_MS = [
   30 * 1000,
   60 * 1000
 ];
+const DEFAULT_REFRESH_TIMEOUT_MS = 20 * 1000;
 
 function createNoopLogger() {
   return {
@@ -32,10 +33,11 @@ function isDegradedDashboard(dashboard) {
 
   const phase = dashboard.refreshStatus?.phase;
   const dataSource = dashboard.refreshStatus?.dataSource ?? dashboard.source?.origin ?? 'unknown';
+  const isLiveSource = dataSource === 'codex_app_server' || dataSource === 'wham_usage';
   return phase === 'failed'
     || phase === 'using_snapshot'
     || Boolean(dashboard.refreshStatus?.failureReason)
-    || dataSource !== 'codex_app_server';
+    || !isLiveSource;
 }
 
 function isRecoveredWakeDashboard(dashboard) {
@@ -44,7 +46,8 @@ function isRecoveredWakeDashboard(dashboard) {
   }
 
   const dataSource = dashboard.refreshStatus?.dataSource ?? dashboard.source?.origin ?? 'unknown';
-  return dataSource === 'codex_app_server' && !dashboard.refreshStatus?.failureReason;
+  return (dataSource === 'codex_app_server' || dataSource === 'wham_usage')
+    && !dashboard.refreshStatus?.failureReason;
 }
 
 export function createRefreshScheduler({
@@ -55,7 +58,8 @@ export function createRefreshScheduler({
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
   backoffDelaysMs = DEFAULT_BACKOFF_DELAYS_MS,
-  wakeRetryDelaysMs = DEFAULT_WAKE_RETRY_DELAYS_MS
+  wakeRetryDelaysMs = DEFAULT_WAKE_RETRY_DELAYS_MS,
+  refreshTimeoutMs = DEFAULT_REFRESH_TIMEOUT_MS
 } = {}) {
   if (typeof runRefresh !== 'function') {
     throw new TypeError('runRefresh must be a function');
@@ -71,6 +75,8 @@ export function createRefreshScheduler({
   let isRetryingAfterWake = false;
   let retryAttempt = null;
   let wakeReason = 'resume';
+  let refreshWatchdogTimer = null;
+  let activeRefreshId = 0;
 
   function publishState(overrides = {}) {
     onStateChange?.({
@@ -90,6 +96,13 @@ export function createRefreshScheduler({
     nextScheduledRefreshAt = null;
   }
 
+  function clearRefreshWatchdog() {
+    if (refreshWatchdogTimer) {
+      clearTimeoutFn(refreshWatchdogTimer);
+      refreshWatchdogTimer = null;
+    }
+  }
+
   function scheduleTimer({
     delayMs,
     schedulerState: nextSchedulerState,
@@ -103,6 +116,7 @@ export function createRefreshScheduler({
     }
 
     clearTimer();
+    clearRefreshWatchdog();
     schedulerState = nextSchedulerState;
     isRetryingAfterWake = isWakeRetry;
     retryAttempt = nextRetryAttempt;
@@ -202,6 +216,8 @@ export function createRefreshScheduler({
 
   function applyRefreshResult(dashboard, { wakeRetryAttempt = null } = {}) {
     lastDashboard = dashboard ?? lastDashboard;
+    inFlightRefresh = null;
+    clearRefreshWatchdog();
 
     if (!lastDashboard) {
       consecutiveFailures += 1;
@@ -247,6 +263,8 @@ export function createRefreshScheduler({
     }
 
     clearTimer();
+    clearRefreshWatchdog();
+    const refreshId = ++activeRefreshId;
     schedulerState = 'refreshing';
     isRetryingAfterWake = wakeRetryAttempt != null;
     retryAttempt = wakeRetryAttempt;
@@ -255,7 +273,7 @@ export function createRefreshScheduler({
       nextScheduledRefreshAt: null
     });
 
-    inFlightRefresh = (async () => {
+    const refreshWork = (async () => {
       try {
         const dashboard = await runRefresh({
           reason,
@@ -263,17 +281,65 @@ export function createRefreshScheduler({
           isRetryingAfterWake: wakeRetryAttempt != null,
           retryAttempt: wakeRetryAttempt
         });
+        if (refreshId !== activeRefreshId) {
+          return lastDashboard;
+        }
         return applyRefreshResult(dashboard, { wakeRetryAttempt });
       } catch (error) {
+        if (refreshId !== activeRefreshId) {
+          return lastDashboard;
+        }
+        inFlightRefresh = null;
+        clearRefreshWatchdog();
         consecutiveFailures += 1;
         isRetryingAfterWake = false;
         retryAttempt = null;
         scheduleBackoffRefresh(lastDashboard);
         throw error;
-      } finally {
-        inFlightRefresh = null;
       }
-    })();
+    })().finally(() => {
+      if (refreshId === activeRefreshId) {
+        inFlightRefresh = null;
+        clearRefreshWatchdog();
+      }
+    });
+
+    const watchdogPromise = Number.isFinite(refreshTimeoutMs) && refreshTimeoutMs > 0
+      ? new Promise((_, reject) => {
+          refreshWatchdogTimer = setTimeoutFn(() => {
+            if (!inFlightRefresh || refreshId !== activeRefreshId) {
+              return;
+            }
+
+            schedulerState = 'idle';
+            isRetryingAfterWake = false;
+            retryAttempt = null;
+            logger.warn({
+              reason,
+              force,
+              timeoutMs: refreshTimeoutMs
+            }, 'refresh watchdog triggered');
+
+            onStateChange?.({
+              phase: 'failed',
+              failureReason: '刷新超时',
+              lastFailureAt: new Date(now()).toISOString(),
+              schedulerState: 'idle',
+              nextScheduledRefreshAt: null,
+              isRetryingAfterWake: false,
+              retryAttempt: null
+            });
+
+            inFlightRefresh = null;
+            clearRefreshWatchdog();
+            reject(new Error('刷新超时'));
+          }, refreshTimeoutMs);
+        })
+      : null;
+
+    inFlightRefresh = watchdogPromise
+      ? Promise.race([refreshWork, watchdogPromise])
+      : refreshWork;
 
     return inFlightRefresh;
   }
@@ -328,6 +394,7 @@ export function createRefreshScheduler({
     dispose() {
       disposed = true;
       clearTimer();
+      clearRefreshWatchdog();
     },
     getSnapshot() {
       return {

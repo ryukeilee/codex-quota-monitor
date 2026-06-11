@@ -147,6 +147,85 @@ test('degraded refresh results enter backoff instead of normal cadence', async (
   assert.equal(clock.pendingTimerCount(), 1);
 });
 
+test('live wham usage refreshes stay on the normal cadence', async () => {
+  const clock = createFakeClock();
+  const scheduler = createRefreshScheduler({
+    runRefresh: async () => createDashboard({
+      source: {
+        origin: 'wham_usage'
+      },
+      refreshStatus: {
+        phase: 'success',
+        dataSource: 'wham_usage',
+        failureReason: null
+      }
+    }),
+    now: clock.now,
+    setTimeoutFn: clock.setTimeoutFn,
+    clearTimeoutFn: clock.clearTimeoutFn
+  });
+
+  await scheduler.requestRefresh({
+    reason: 'manual'
+  });
+
+  const snapshot = scheduler.getSnapshot();
+  assert.equal(snapshot.schedulerState, 'idle');
+  assert.equal(snapshot.hasTimer, true);
+  assert.equal(clock.pendingTimerCount(), 1);
+});
+
+test('refresh watchdog releases the visible refreshing state when a refresh hangs', async () => {
+  const clock = createFakeClock();
+  const patches = [];
+  const scheduler = createRefreshScheduler({
+    runRefresh: async () => new Promise(() => {}),
+    onStateChange: (patch) => {
+      patches.push(patch);
+    },
+    now: clock.now,
+    setTimeoutFn: clock.setTimeoutFn,
+    clearTimeoutFn: clock.clearTimeoutFn,
+    refreshTimeoutMs: 10 * 1000
+  });
+
+  const refresh = scheduler.requestRefresh({
+    reason: 'manual'
+  });
+
+  await clock.advanceBy(10 * 1000);
+  await assert.rejects(refresh, /刷新超时/);
+
+  assert.ok(patches.some((patch) => patch.phase === 'failed' && patch.failureReason === '刷新超时'));
+  assert.equal(scheduler.getSnapshot().hasInFlightRefresh, false);
+});
+
+test('refresh watchdog rejects the hanging refresh so callers can recover', async () => {
+  const clock = createFakeClock();
+  const patches = [];
+  const scheduler = createRefreshScheduler({
+    runRefresh: async () => new Promise(() => {}),
+    onStateChange: (patch) => {
+      patches.push(patch);
+    },
+    now: clock.now,
+    setTimeoutFn: clock.setTimeoutFn,
+    clearTimeoutFn: clock.clearTimeoutFn,
+    refreshTimeoutMs: 10 * 1000
+  });
+
+  const refresh = scheduler.requestRefresh({
+    reason: 'manual'
+  });
+
+  await clock.advanceBy(10 * 1000);
+  await assert.rejects(refresh, /刷新超时/);
+
+  assert.ok(patches.some((patch) => patch.phase === 'failed' && patch.failureReason === '刷新超时'));
+  assert.equal(scheduler.getSnapshot().hasInFlightRefresh, false);
+  assert.equal(scheduler.getSnapshot().schedulerState, 'idle');
+});
+
 test('sleep and wake retries trigger an immediate refresh before the retry chain continues', async () => {
   const clock = createFakeClock();
   const calls = [];

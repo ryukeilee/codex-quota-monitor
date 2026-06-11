@@ -91,6 +91,27 @@ function formatAdviceLabel(flowAdvice, prediction) {
   return `建议 ${formatFlowAdviceState(flowAdvice, prediction)}`;
 }
 
+function formatBurnRateLabel(quotaBurnRate) {
+  if (!quotaBurnRate || quotaBurnRate.level === 'unknown') {
+    return '消耗 先观察';
+  }
+
+  const paceLabelMap = {
+    critical: '很快',
+    high: '偏快',
+    watch: '正常',
+    steady: '平稳'
+  };
+
+  const paceLabel = paceLabelMap[quotaBurnRate.level] ?? '先观察';
+  const hoursRemaining = quotaBurnRate.estimatedHoursRemaining;
+  const hoursLabel = Number.isFinite(hoursRemaining)
+    ? `${Math.max(1, Math.round(hoursRemaining))}h`
+    : '较久';
+
+  return `消耗 ${paceLabel} · 约 ${hoursLabel}`;
+}
+
 function formatRefreshActionLabel(refreshStatus) {
   if (refreshStatus?.phase === 'refreshing') {
     return '刷新中…';
@@ -163,6 +184,7 @@ export function buildMenuBarState(dashboard) {
     : '暂无';
   const overviewLabel = formatOverviewLabel(dashboard.summary, dashboard.weeklySummary);
   const statusLabel = formatStatusLabel(refreshStatus, quotaAlertStatus);
+  const burnRateLabel = formatBurnRateLabel(dashboard.quotaBurnRate);
   const adviceLabel = formatAdviceLabel(dashboard.flowAdvice, dashboard.prediction);
   const refreshActionLabel = formatRefreshActionLabel(refreshStatus);
   const refreshActionEnabled = refreshStatus.phase !== 'refreshing';
@@ -177,8 +199,8 @@ export function buildMenuBarState(dashboard) {
     lines: {
       overviewLabel,
       statusLabel,
+      burnRateLabel,
       adviceLabel,
-      nextRefreshLabel: `下次刷新 ${formatTimeLabel(refreshStatus.nextScheduledRefreshAt)}`,
       refreshLabel: formatRefreshLabel(dashboard.refreshInterval)
     }
   };

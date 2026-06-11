@@ -7,144 +7,134 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <section class="hero-panel">
-        <div>
+    <main class="hud-shell">
+      <header class="hud-header panel">
+        <div class="header-copy">
           <p class="eyebrow">Codex Monitor</p>
-          <h1>把剩余额度变成稳定开发节奏</h1>
-          <p class="hero-copy">
-            首版采用安全的本地快照读取方式，不碰私有接口，不做危险注入，专注于周额度、5 小时窗口、消耗趋势和本地规则型开发心流建议。
-          </p>
+          <h1>Arc Reactor Control</h1>
+          <p class="hero-copy">本地读取周额度、5 小时窗口和消耗速度，用一屏控制台直接判断该冲还是该收。</p>
         </div>
-        <div class="hero-actions">
+        <div class="header-actions">
           <button id="refresh-button" class="primary-button">立即刷新</button>
           <p id="refresh-status" class="meta-text"></p>
           <p id="refresh-meta" class="meta-text"></p>
         </div>
-      </section>
+      </header>
 
-      <section class="card-grid">
-        <article class="metric-card">
-          <p class="metric-label">剩余额度</p>
-          <h2 id="remaining-percent">--</h2>
-          <p id="remaining-detail" class="metric-detail"></p>
-        </article>
-        <article class="metric-card">
-          <p class="metric-label">7 天余额</p>
-          <h2 id="weekly-percent">--</h2>
-          <p id="weekly-detail" class="metric-detail"></p>
-        </article>
-        <article class="metric-card">
-          <p class="metric-label">5 小时窗口</p>
-          <h2 id="window-state">--</h2>
-          <p id="window-detail" class="metric-detail"></p>
-        </article>
-        <article class="metric-card">
-          <p class="metric-label">预计恢复</p>
-          <h2 id="recovery-time">--</h2>
-          <p id="recovery-detail" class="metric-detail"></p>
-        </article>
-        <article class="metric-card">
-          <p class="metric-label">开发心流建议</p>
-          <h2 id="flow-hours">--</h2>
-          <p id="flow-detail" class="metric-detail"></p>
-        </article>
-        <article class="metric-card">
-          <p class="metric-label">开发状态</p>
-          <h2 id="development-state">--</h2>
-          <p id="development-detail" class="metric-detail"></p>
-        </article>
-      </section>
-
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Live Data</p>
-            <h3>实时额度摘要</h3>
-          </div>
-          <p id="live-source-label-top" class="meta-text"></p>
-        </div>
-        <div class="summary-strip">
-          <div class="summary-pill">
-            <span class="summary-label">5 小时剩余</span>
-            <strong id="remaining-percent-inline">--</strong>
-          </div>
-          <div class="summary-pill">
-            <span class="summary-label">7 天剩余</span>
-            <strong id="weekly-percent-inline">--</strong>
-          </div>
-          <div class="summary-pill">
-            <span class="summary-label">窗口状态</span>
-            <strong id="window-state-inline">--</strong>
-          </div>
-          <div class="summary-pill">
-            <span class="summary-label">恢复时间</span>
-            <strong id="recovery-time-inline">--</strong>
-          </div>
-          <div class="summary-pill">
-            <span class="summary-label">数据源</span>
-            <strong id="live-source-label">--</strong>
-          </div>
-          <div class="summary-pill">
-            <span class="summary-label">开发状态</span>
-            <strong id="development-state-inline">--</strong>
-          </div>
-        </div>
-      </section>
-
-      <section class="content-grid">
-        <article class="panel strategy-panel">
+      <section class="hud-grid">
+        <article class="panel reactor-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Trend</p>
-              <h3>5 小时内的剩余额度</h3>
+              <p class="eyebrow">Core</p>
+              <h2>额度中枢</h2>
+            </div>
+            <p id="development-detail" class="meta-text"></p>
+          </div>
+
+          <div class="reactor-core">
+            <div class="reactor-orbit"></div>
+            <div class="reactor-orbit reactor-orbit--outer"></div>
+            <div class="reactor-readout">
+              <p class="eyebrow">Remaining</p>
+              <h3 id="remaining-percent">--</h3>
+              <p id="remaining-detail" class="metric-detail"></p>
+              <p class="mini-line">
+                <strong id="weekly-percent">--</strong>
+                <span id="weekly-detail" class="metric-detail"></span>
+              </p>
+              <div class="core-status-line">
+                <span id="burn-rate-title">--</span>
+                <span id="burn-rate-detail">--</span>
+                <span id="development-state" class="meta-text"></span>
+              </div>
+              <p id="burn-rate-meta" class="meta-text"></p>
+            </div>
+          </div>
+
+          <div class="summary-strip reactor-strip">
+            <div class="summary-pill">
+              <span class="summary-label">7 天</span>
+              <strong id="weekly-percent-inline">--</strong>
+            </div>
+            <div class="summary-pill">
+              <span class="summary-label">5 小时</span>
+              <strong id="remaining-percent-inline">--</strong>
+            </div>
+            <div class="summary-pill">
+              <span class="summary-label">窗口</span>
+              <strong id="window-state-inline">--</strong>
+            </div>
+            <div class="summary-pill">
+              <span class="summary-label">恢复</span>
+              <strong id="recovery-time-inline">--</strong>
+            </div>
+            <div class="summary-pill">
+              <span class="summary-label">来源</span>
+              <strong id="live-source-label">--</strong>
+            </div>
+            <div class="summary-pill">
+              <span class="summary-label">状态</span>
+              <strong id="development-state-inline">--</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel terminal-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Terminal</p>
+              <h3>实时额度终端</h3>
             </div>
             <p id="trend-source-label" class="meta-text"></p>
           </div>
-          <div id="history-chart" class="chart"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Mode</p>
-              <h3>刷新策略</h3>
+          <div id="history-chart" class="chart chart--mini"></div>
+          <div class="terminal-stats">
+            <div class="summary-pill">
+              <span class="summary-label">窗口状态</span>
+              <strong id="window-state">--</strong>
+              <span id="window-detail" class="metric-detail"></span>
+            </div>
+            <div class="summary-pill">
+              <span class="summary-label">预计恢复</span>
+              <strong id="recovery-time">--</strong>
+              <span id="recovery-detail" class="metric-detail"></span>
             </div>
           </div>
-          <form id="preferences-form" class="preferences-form">
-            <label class="toggle-row">
-              <span>开发中</span>
-              <input id="is-active" type="checkbox" />
-            </label>
-            <label class="toggle-row">
-              <span>菜单栏显示剩余百分比</span>
-              <input id="show-percentage-in-menu-bar" type="checkbox" />
-            </label>
-            <label class="toggle-row">
-              <span>关闭窗口后驻留菜单栏</span>
-              <input id="close-to-menu-bar" type="checkbox" />
-            </label>
-            <label class="toggle-row">
-              <span>启用低额度提醒</span>
-              <input id="notifications-enabled" type="checkbox" />
-            </label>
-            <label class="toggle-row">
-              <span>开机自启动</span>
-              <input id="auto-launch-enabled" type="checkbox" />
-            </label>
-            <label class="toggle-row">
-              <span>纯菜单栏模式（隐藏 Dock）</span>
-              <input id="pure-menu-bar-mode" type="checkbox" />
-            </label>
-            <button class="secondary-button" type="submit">保存刷新策略</button>
-          </form>
+        </article>
 
-          <div id="flow-advice-box" class="recommendation-box">
+        <article class="panel radar-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Radar</p>
+              <h3>状态雷达</h3>
+            </div>
+          </div>
+          <div class="flow-summary">
             <p class="eyebrow">Flow Advice</p>
+            <h3 id="flow-hours">--</h3>
+            <p id="flow-detail" class="meta-text"></p>
+          </div>
+          <div class="radar-readouts">
+            <div class="summary-pill">
+              <span class="summary-label">当前判断</span>
+              <strong id="burn-rate-level-inline">--</strong>
+            </div>
+            <div class="summary-pill">
+              <span class="summary-label">还能开发</span>
+              <strong id="burn-rate-hours-inline">--</strong>
+            </div>
+            <div class="summary-pill">
+              <span class="summary-label">强度建议</span>
+              <strong id="burn-rate-intensity-inline">--</strong>
+            </div>
+          </div>
+          <p id="burn-rate-message" class="recommendation-text"></p>
+          <p id="burn-rate-meta" class="meta-text"></p>
+          <div id="flow-advice-box" class="recommendation-box">
             <h3 id="flow-advice-title">建议</h3>
             <p id="flow-advice-state" class="flow-advice-state"></p>
-            <p id="recommendation-text" class="recommendation-text"></p>
             <p id="flow-advice-meta" class="meta-text"></p>
+            <p id="recommendation-text" class="recommendation-text"></p>
             <div class="advice-grid">
               <div class="advice-group">
                 <p class="advice-group-label">推荐做</p>
@@ -157,17 +147,53 @@
             </div>
           </div>
         </article>
-      </section>
 
-      <section class="panel records-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Records</p>
-            <h3>Recent Records</h3>
+        <article class="panel control-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Mode</p>
+              <h3>运行控制台</h3>
+            </div>
           </div>
-          <p class="meta-text">最近的窗口内消耗记录</p>
-        </div>
-        <div id="record-list" class="record-list"></div>
+          <form id="preferences-form" class="preferences-form">
+            <label class="toggle-row">
+              <span>开发中</span>
+              <input id="is-active" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>菜单栏百分比</span>
+              <input id="show-percentage-in-menu-bar" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>关闭后驻留</span>
+              <input id="close-to-menu-bar" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>低额度提醒</span>
+              <input id="notifications-enabled" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>开机自启</span>
+              <input id="auto-launch-enabled" type="checkbox" />
+            </label>
+            <label class="toggle-row">
+              <span>纯菜单栏</span>
+              <input id="pure-menu-bar-mode" type="checkbox" />
+            </label>
+            <button class="secondary-button" type="submit">保存刷新策略</button>
+          </form>
+        </article>
+
+        <section class="panel records-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Records</p>
+              <h3>最近脉冲</h3>
+            </div>
+            <p class="meta-text">只看最近 3 条</p>
+          </div>
+          <div id="record-list" class="record-list"></div>
+        </section>
       </section>
     </main>
 

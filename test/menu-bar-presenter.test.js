@@ -43,6 +43,18 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
       recommendedIntensity: 'current',
       recommendation: '当前消耗速度平稳，建议保持当前节奏。'
     },
+    quotaBurnRate: {
+      level: 'steady',
+      isBurningFast: false,
+      recommendedIntensity: 'current',
+      title: '消耗平稳',
+      message: '按当前速度，额度大约还能撑 12 小时，暂时不需要主动降强度。',
+      estimatedTimeRemaining: '12 小时',
+      estimatedHoursRemaining: 12,
+      weeklyBurnRatePerHour: 1.2,
+      window5hBurnRatePerHour: 0.8,
+      basedOnHours: 8
+    },
     flowAdvice: {
       level: 'light',
       title: '适合小步推进',
@@ -62,8 +74,8 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   assert.equal(state.toolTip, 'Codex Monitor：周 87% · 5小时 64% · 正常 · 最近成功');
   assert.equal(state.lines.overviewLabel, '周 87% · 5小时 64%');
   assert.equal(state.lines.statusLabel, '状态 正常 · 实时数据 · 新鲜');
+  assert.equal(state.lines.burnRateLabel, '消耗 平稳 · 约 12h');
   assert.equal(state.lines.adviceLabel, '建议 适合小步推进');
-  assert.equal(state.lines.nextRefreshLabel, '下次刷新 18:17:00');
 });
 
 test('buildMenuBarState keeps the tray title as a plain percentage when quota is near limit', () => {
@@ -103,6 +115,18 @@ test('buildMenuBarState keeps the tray title as a plain percentage when quota is
       recommendedIntensity: 'low',
       recommendation: '建议降低推理强度，避免在当前窗口内撞到额度墙。'
     },
+    quotaBurnRate: {
+      level: 'critical',
+      isBurningFast: true,
+      recommendedIntensity: 'lower',
+      title: '消耗偏快',
+      message: '按当前速度，额度大约还能撑 1 小时，建议立刻降模型或推理强度。',
+      estimatedTimeRemaining: '1 小时',
+      estimatedHoursRemaining: 1,
+      weeklyBurnRatePerHour: 4.8,
+      window5hBurnRatePerHour: 11.2,
+      basedOnHours: 6
+    },
     flowAdvice: {
       level: 'review_only',
       title: '只做 Review / 收尾',
@@ -120,6 +144,7 @@ test('buildMenuBarState keeps the tray title as a plain percentage when quota is
   assert.equal(state.title, '87%');
   assert.equal(state.lines.overviewLabel, '周 87% · 5小时 12%');
   assert.equal(state.lines.statusLabel, '状态 正常 · 实时数据 · 新鲜');
+  assert.equal(state.lines.burnRateLabel, '消耗 很快 · 约 1h');
 });
 
 test('buildMenuBarState hides title text when menu bar display is disabled', () => {
@@ -174,7 +199,6 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
 
   assert.equal(state.title, '');
   assert.equal(state.lines.overviewLabel, '周 87% · 5小时 12%');
-  assert.equal(state.lines.nextRefreshLabel, '下次刷新 18:17:00');
 });
 
 test('buildMenuBarState shows a busy refresh action while refreshing', () => {
@@ -268,7 +292,6 @@ test('buildMenuBarState handles unavailable live quota data gracefully', () => {
   assert.equal(state.lines.overviewLabel, '周 暂无 · 5小时 暂无');
   assert.equal(state.lines.statusLabel, '状态 暂无 · 未知来源 · 未知');
   assert.equal(state.lines.adviceLabel, '建议 先等数据');
-  assert.equal(state.lines.nextRefreshLabel, '下次刷新 11:21:55');
 });
 
 test('formatRefreshLabel returns the low-frequency refresh label', () => {

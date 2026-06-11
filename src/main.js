@@ -88,10 +88,10 @@ function attachWebContentsDiagnostics(window, name) {
 
 async function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 1140,
-    height: 780,
-    minWidth: 920,
-    minHeight: 660,
+    width: 1320,
+    height: 940,
+    minWidth: 1080,
+    minHeight: 760,
     backgroundColor: '#f5f0e8',
     show: false,
     webPreferences: {
@@ -197,11 +197,11 @@ function updateTray(dashboard) {
       enabled: false
     },
     {
-      label: menuBarState.lines.adviceLabel,
+      label: menuBarState.lines.burnRateLabel,
       enabled: false
     },
     {
-      label: menuBarState.lines.nextRefreshLabel,
+      label: menuBarState.lines.adviceLabel,
       enabled: false
     },
     { type: 'separator' },

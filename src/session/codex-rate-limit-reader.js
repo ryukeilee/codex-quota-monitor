@@ -132,20 +132,21 @@ function normalizeWhamUsageResponse(response) {
 }
 
 export function normalizeRateLimitsResponse(response) {
-  const rateLimits = response?.rateLimits ?? response?.result?.rateLimits;
-  if (!rateLimits?.primary || !rateLimits?.secondary) {
+  const rateLimitsByLimitId = response?.rateLimitsByLimitId ?? response?.result?.rateLimitsByLimitId ?? {};
+  const preferredRateLimits = rateLimitsByLimitId.codex ?? response?.rateLimits ?? response?.result?.rateLimits;
+  if (!preferredRateLimits?.primary || !preferredRateLimits?.secondary) {
     return null;
   }
 
   return {
     sourceLabel: 'codex-account-rate-limits',
     sourceOrigin: 'codex_app_server',
-    primary: normalizeUsedPercentWindow(rateLimits.primary),
-    secondary: normalizeUsedPercentWindow(rateLimits.secondary),
-    credits: rateLimits.credits ?? null,
-    planType: rateLimits.planType ?? null,
-    rateLimitReachedType: rateLimits.rateLimitReachedType ?? null,
-    individualLimit: normalizeRemainingPercentWindow(rateLimits.individualLimit)
+    primary: normalizeUsedPercentWindow(preferredRateLimits.primary),
+    secondary: normalizeUsedPercentWindow(preferredRateLimits.secondary),
+    credits: preferredRateLimits.credits ?? null,
+    planType: preferredRateLimits.planType ?? null,
+    rateLimitReachedType: preferredRateLimits.rateLimitReachedType ?? null,
+    individualLimit: normalizeRemainingPercentWindow(preferredRateLimits.individualLimit)
   };
 }
 

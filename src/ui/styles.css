@@ -196,6 +196,13 @@ body::after {
   transform: translateY(-1px);
 }
 
+.primary-button:disabled,
+.secondary-button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+  transform: none;
+}
+
 .primary-button {
   background: linear-gradient(135deg, var(--accent), rgba(77, 242, 255, 0.78));
   color: #06101a;

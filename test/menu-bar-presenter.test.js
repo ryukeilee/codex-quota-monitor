@@ -177,6 +177,62 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
   assert.equal(state.lines.nextRefreshLabel, '下次刷新 18:17:00');
 });
 
+test('buildMenuBarState shows a busy refresh action while refreshing', () => {
+  const state = buildMenuBarState({
+    refreshedAt: '2026-06-06T10:12:00.000Z',
+    refreshStatus: {
+      phase: 'refreshing',
+      dataSource: 'codex_app_server',
+      freshness: 'fresh',
+      lastAttemptAt: '2026-06-06T10:12:00.000Z',
+      lastSuccessAt: '2026-06-06T10:12:00.000Z',
+      lastFailureAt: null,
+      nextScheduledRefreshAt: null,
+      failureReason: null,
+      isRetryingAfterWake: false,
+      retryAttempt: null
+    },
+    summary: {
+      remainingPercent: 64,
+      remaining: 64,
+      used: 36,
+      limit: 100,
+      presentation: 'percent',
+      windowState: 'healthy',
+      nextRecoveryAt: '2026-06-06T10:30:00.000Z'
+    },
+    weeklySummary: {
+      remainingPercent: 87,
+      remaining: 87,
+      used: 13,
+      limit: 100,
+      nextRecoveryAt: '2026-06-11T10:30:00.000Z'
+    },
+    prediction: {
+      hoursRemaining: 5,
+      burnRatePerHour: 7.2,
+      recommendedIntensity: 'current',
+      recommendation: '当前消耗速度平稳，建议保持当前节奏。'
+    },
+    flowAdvice: {
+      level: 'light',
+      title: '适合小步推进',
+      message: '额度还行，先做小任务或拆分推进。',
+      recommendedWork: ['小功能', '修 bug', '补测试'],
+      avoidWork: ['大重构', '跨模块改动'],
+      basedOnStaleData: false
+    },
+    preferences: {
+      isActive: true,
+      isHighIntensity: false,
+      showPercentageInMenuBar: true
+    }
+  });
+
+  assert.equal(state.refreshAction.label, '刷新中…');
+  assert.equal(state.refreshAction.enabled, false);
+});
+
 test('buildMenuBarState handles unavailable live quota data gracefully', () => {
   const state = buildMenuBarState({
     refreshedAt: '2026-06-09T03:16:55.878Z',

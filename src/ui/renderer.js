@@ -56,6 +56,15 @@ const elements = {
   pureMenuBarMode: document.getElementById('pure-menu-bar-mode')
 };
 
+function setRefreshButtonState(isRefreshing) {
+  if (!elements.refreshButton) {
+    return;
+  }
+
+  elements.refreshButton.disabled = isRefreshing;
+  elements.refreshButton.textContent = isRefreshing ? '刷新中…' : '立即刷新';
+}
+
 function formatTime(value) {
   if (!value) {
     return '暂无';
@@ -242,6 +251,9 @@ function renderDashboard(dashboard) {
     return;
   }
 
+  const isRefreshing = dashboard.refreshStatus?.phase === 'refreshing' || dashboard.isRefreshing;
+  setRefreshButtonState(isRefreshing);
+
   const applyAdviceState = (advice) => {
     if (!elements.flowAdviceBox) {
       return;
@@ -365,11 +377,21 @@ function renderDashboard(dashboard) {
 }
 
 elements.refreshButton.addEventListener('click', async () => {
+  setRefreshButtonState(true);
   const dashboard = await window.codexMonitor.refreshQuota({
     reason: 'manual',
     force: true
+  }).catch((error) => {
+    console.error('manual refresh failed', error);
+    return null;
   });
-  renderDashboard(dashboard);
+
+  if (dashboard) {
+    renderDashboard(dashboard);
+    return;
+  }
+
+  setRefreshButtonState(false);
 });
 
 elements.preferencesForm.addEventListener('submit', async (event) => {

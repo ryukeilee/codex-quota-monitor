@@ -10,6 +10,7 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - Native-style menu bar display with a compact tray menu
 - Local-first and privacy-first by design
 - Automatic refresh with a unified low-frequency scheduler
+- Manual refresh shows a clear busy state so it is obvious when a refresh is in progress
 - Tray menu keeps only the most important snapshot: weekly quota, 5-hour window, status, and next refresh
 - Dashboard view for reset timing, trends, and local flow advice hints
 - Auto-launch and pure menu bar mode support
@@ -33,7 +34,7 @@ The app prefers the authenticated ChatGPT `wham/usage` quota endpoint, then fall
 Source priority:
 
 1. Live `https://chatgpt.com/backend-api/wham/usage` data from the authenticated ChatGPT account
-2. Live `account/rateLimits/read` data from the local Codex app-server
+2. Live `account/rateLimits/read` data from the local Codex app-server, preferring the `rateLimitsByLimitId.codex` bucket when available
 3. Local snapshot fallback in `data/source-snapshot.json`
 
 The live source provides:
@@ -41,6 +42,7 @@ The live source provides:
 - 5-hour quota remaining percentage
 - Weekly quota remaining percentage
 - Reset timestamps
+- A clear source label so you can tell whether the app is showing live `wham/usage`, app-server, or local snapshot data
 
 The fallback snapshot format is intentionally simple:
 
@@ -85,6 +87,7 @@ The fallback snapshot format is intentionally simple:
 - A single scheduler owns automatic, manual, deferred, and retry refreshes
 - Normal timer refresh runs every 5 minutes
 - Forced refreshes are deduped within 10 seconds
+- Manual refresh switches the tray and in-app button into a visible busy state while the refresh is running
 - Sleep pauses the scheduler instead of letting background timers run
 - Mac wake and screen unlock trigger one immediate refresh, then retry at 5s, 15s, 30s, and 60s if needed
 - Wake retry sequences stop after the first successful live refresh

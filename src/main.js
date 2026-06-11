@@ -180,6 +180,10 @@ function updateTray(dashboard) {
   }
 
   const menuBarState = buildMenuBarState(dashboard);
+  const refreshAction = menuBarState.refreshAction ?? {
+    label: '立即刷新',
+    enabled: true
+  };
   tray.setImage(createTrayIcon());
   tray.setTitle(menuBarState.title, { fontType: 'monospacedDigit' });
   tray.setToolTip(menuBarState.toolTip);
@@ -202,13 +206,20 @@ function updateTray(dashboard) {
     },
     { type: 'separator' },
     {
-      label: '立即刷新',
+      label: refreshAction.label,
+      enabled: refreshAction.enabled,
       click: async () => {
-        if (monitorService) {
-          await refreshScheduler.requestRefresh({
-            reason: 'manual',
-            force: true
-          });
+        if (monitorService && refreshAction.enabled) {
+          try {
+            await refreshScheduler.requestRefresh({
+              reason: 'manual',
+              force: true
+            });
+          } catch (error) {
+            logger.error({
+              error: error?.message ?? String(error)
+            }, 'manual refresh failed');
+          }
         }
       }
     },

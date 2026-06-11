@@ -91,6 +91,14 @@ function formatAdviceLabel(flowAdvice, prediction) {
   return `建议 ${formatFlowAdviceState(flowAdvice, prediction)}`;
 }
 
+function formatRefreshActionLabel(refreshStatus) {
+  if (refreshStatus?.phase === 'refreshing') {
+    return '刷新中…';
+  }
+
+  return '立即刷新';
+}
+
 function formatTrayTitle(summary, weeklySummary, preferences) {
   if (!preferences.showPercentageInMenuBar) {
     return '';
@@ -156,10 +164,16 @@ export function buildMenuBarState(dashboard) {
   const overviewLabel = formatOverviewLabel(dashboard.summary, dashboard.weeklySummary);
   const statusLabel = formatStatusLabel(refreshStatus, quotaAlertStatus);
   const adviceLabel = formatAdviceLabel(dashboard.flowAdvice, dashboard.prediction);
+  const refreshActionLabel = formatRefreshActionLabel(refreshStatus);
+  const refreshActionEnabled = refreshStatus.phase !== 'refreshing';
 
   return {
     title: formatTrayTitle(dashboard.summary, dashboard.weeklySummary, dashboard.preferences),
     toolTip: `Codex Monitor：${overviewLabel} · ${quotaAlertTooltipLabel} · ${refreshLabels.phaseLabel}`,
+    refreshAction: {
+      label: refreshActionLabel,
+      enabled: refreshActionEnabled
+    },
     lines: {
       overviewLabel,
       statusLabel,

@@ -17,6 +17,12 @@ const DEFAULT_CODEX_SEARCH_PATHS = [
   '/Applications/Codex.app/Contents/Resources',
   '/Applications/Codex.app/Contents/MacOS'
 ];
+const WHAM_FAILURE_KINDS = new Set([
+  'timeout',
+  'transport',
+  'auth',
+  'status'
+]);
 
 function toIsoTimestamp(seconds) {
   if (typeof seconds !== 'number' || !Number.isFinite(seconds)) {
@@ -129,6 +135,65 @@ function normalizeWhamUsageResponse(response) {
       ?? null
     )
   };
+}
+
+function createWhamUsageError(kind, message, { cause = null, status = null } = {}) {
+  const error = new Error(message);
+  error.name = 'WhamUsageError';
+  error.kind = kind;
+  error.sourceOrigin = 'wham_usage';
+  if (status != null) {
+    error.status = status;
+  }
+  if (cause) {
+    error.cause = cause;
+  }
+  return error;
+}
+
+function isTimeoutError(error) {
+  const message = `${error?.message ?? ''} ${error?.cause?.message ?? ''}`.toLowerCase();
+  return error?.name === 'AbortError'
+    || error?.cause?.name === 'AbortError'
+    || error?.code === 'ABORT_ERR'
+    || message.includes('timed out');
+}
+
+export function classifyWhamUsageFailure(error) {
+  if (error?.kind && WHAM_FAILURE_KINDS.has(error.kind)) {
+    return error.kind;
+  }
+
+  if (typeof error?.status === 'number') {
+    return error.status === 401 || error.status === 403 ? 'auth' : 'status';
+  }
+
+  if (isTimeoutError(error)) {
+    return 'timeout';
+  }
+
+  if (['ECONNRESET', 'ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'EHOSTUNREACH', 'EAI_AGAIN', 'ECONNABORTED'].includes(error?.code)) {
+    return 'transport';
+  }
+
+  const message = `${error?.message ?? ''} ${error?.cause?.message ?? ''}`.toLowerCase();
+  if (
+    message.includes('fetch failed')
+    || message.includes('error sending request')
+    || message.includes('network')
+    || message.includes('socket')
+    || message.includes('tls')
+    || message.includes('certificate')
+    || message.includes('dns')
+  ) {
+    return 'transport';
+  }
+
+  if (message.includes('decode error') || message.includes('returned no usable rate limits')) {
+    return 'status';
+  }
+
+  return 'transport';
 }
 
 export function normalizeRateLimitsResponse(response) {
@@ -414,11 +479,15 @@ async function fetchWhamUsageRateLimits({
   const auth = readAuthJson(authFilePath);
   const headers = getAuthHeaders(auth);
   if (!headers.authorization) {
-    throw new Error('missing ChatGPT access token for wham usage request');
+    throw createWhamUsageError('auth', 'missing ChatGPT access token for wham usage request');
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(new Error('wham usage request timed out')), timeoutMs);
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort(new Error('wham usage request timed out'));
+  }, timeoutMs);
 
   try {
     const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/wham/usage`, {
@@ -430,24 +499,70 @@ async function fetchWhamUsageRateLimits({
     const contentType = response.headers.get('content-type') ?? '';
     const bodyText = await response.text();
     if (!response.ok) {
-      throw new Error(`GET ${baseUrl}/wham/usage failed: ${response.status}; content-type=${contentType}; body=${bodyText}`);
+      throw createWhamUsageError(
+        response.status === 401 || response.status === 403 ? 'auth' : 'status',
+        `GET ${baseUrl}/wham/usage failed: ${response.status}; content-type=${contentType}; body=${bodyText}`,
+        {
+          status: response.status
+        }
+      );
     }
 
     let payload;
     try {
       payload = JSON.parse(bodyText);
     } catch (error) {
-      throw new Error(`Decode error for ${baseUrl}/wham/usage: ${error?.message ?? String(error)}; content-type=${contentType}; body=${bodyText}`);
+      throw createWhamUsageError(
+        'status',
+        `Decode error for ${baseUrl}/wham/usage: ${error?.message ?? String(error)}; content-type=${contentType}; body=${bodyText}`,
+        {
+          cause: error
+        }
+      );
     }
 
     const normalized = normalizeWhamUsageResponse(payload);
     if (!normalized) {
-      throw new Error('wham/usage returned no usable rate limits');
+      throw createWhamUsageError('status', 'wham/usage returned no usable rate limits');
+    }
+
+    return normalized;
+  } catch (error) {
+    if (error?.kind && WHAM_FAILURE_KINDS.has(error.kind)) {
+      throw error;
+    }
+
+    if (timedOut || isTimeoutError(error)) {
+      throw createWhamUsageError('timeout', 'wham usage request timed out', {
+        cause: error
+      });
+    }
+
+    throw createWhamUsageError(classifyWhamUsageFailure(error), error?.message ?? 'wham usage request failed', {
+      cause: error
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function readAppServerRateLimits({
+  cwd,
+  timeoutMs
+}) {
+  let client = null;
+  try {
+    client = createJsonRpcClient({ cwd, timeoutMs });
+    await client.ready;
+    const result = await client.request('account/rateLimits/read');
+    const normalized = normalizeRateLimitsResponse(result);
+    if (!normalized) {
+      throw new Error('account/rateLimits/read returned no usable rate limits');
     }
 
     return normalized;
   } finally {
-    clearTimeout(timeout);
+    client?.child.kill();
   }
 }
 
@@ -466,50 +581,52 @@ export async function readLiveRateLimits({
   authFilePath = path.join(os.homedir(), '.codex', 'auth.json'),
   baseUrl = DEFAULT_CHATGPT_BACKEND_URL,
   fetchImpl = fetch,
-  sourcePreference = 'auto'
+  sourcePreference = 'auto',
+  onSourceAttemptFailure = null
 } = {}) {
   const auth = readAuthJson(authFilePath);
   const canUseWham = auth?.auth_mode === 'chatgpt';
-  const effectiveSourcePreference = sourcePreference === 'auto'
-    ? (canUseWham ? 'wham_usage' : 'app_server')
-    : sourcePreference;
+  const sourceOrder = sourcePreference === 'auto'
+    ? (canUseWham ? ['wham_usage', 'app_server'] : ['app_server'])
+    : sourcePreference === 'wham_usage'
+      ? ['wham_usage']
+      : ['app_server', ...(canUseWham ? ['wham_usage'] : [])];
 
-  if (effectiveSourcePreference === 'wham_usage' && canUseWham) {
+  let lastError = null;
+  for (const sourceOrigin of sourceOrder) {
     try {
-      return await fetchWhamUsageRateLimits({
-        authFilePath,
-        baseUrl,
-        timeoutMs,
-        fetchImpl
+      if (sourceOrigin === 'wham_usage') {
+        return await fetchWhamUsageRateLimits({
+          authFilePath,
+          baseUrl,
+          timeoutMs,
+          fetchImpl
+        });
+      }
+
+      return await readAppServerRateLimits({
+        cwd,
+        timeoutMs
       });
-    } catch {
-      // Fall through to the local app-server when explicitly preferred web data is unavailable.
+    } catch (error) {
+      lastError = error;
+      const failureKind = sourceOrigin === 'wham_usage'
+        ? classifyWhamUsageFailure(error)
+        : 'transport';
+
+      onSourceAttemptFailure?.({
+        sourceOrigin,
+        kind: failureKind,
+        error
+      });
+
+      if (sourceOrigin !== sourceOrder[sourceOrder.length - 1]) {
+        continue;
+      }
+
+      throw error;
     }
   }
 
-  let client = null;
-  try {
-    client = createJsonRpcClient({ cwd, timeoutMs });
-    await client.ready;
-    const result = await client.request('account/rateLimits/read');
-    const normalized = normalizeRateLimitsResponse(result);
-    if (!normalized) {
-      throw new Error('account/rateLimits/read returned no usable rate limits');
-    }
-
-    return normalized;
-  } catch (error) {
-    if (canUseWham && effectiveSourcePreference !== 'wham_usage') {
-      return fetchWhamUsageRateLimits({
-        authFilePath,
-        baseUrl,
-        timeoutMs,
-        fetchImpl
-      });
-    }
-
-    throw error;
-  } finally {
-    client?.child.kill();
-  }
+  throw lastError ?? new Error('unable to read live rate limits');
 }

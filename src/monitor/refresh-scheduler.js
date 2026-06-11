@@ -311,6 +311,7 @@ export function createRefreshScheduler({
               return;
             }
 
+            activeRefreshId += 1;
             schedulerState = 'idle';
             isRetryingAfterWake = false;
             retryAttempt = null;
@@ -332,6 +333,12 @@ export function createRefreshScheduler({
 
             inFlightRefresh = null;
             clearRefreshWatchdog();
+            if (wakeRetryAttempt != null) {
+              scheduleWakeRetry(wakeRetryAttempt);
+            } else {
+              consecutiveFailures += 1;
+              scheduleBackoffRefresh(lastDashboard);
+            }
             reject(new Error('刷新超时'));
           }, refreshTimeoutMs);
         })

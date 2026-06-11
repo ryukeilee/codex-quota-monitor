@@ -39,6 +39,8 @@ Source priority:
 2. Live `account/rateLimits/read` data from the local Codex app-server, preferring the `rateLimitsByLimitId.codex` bucket when available and falling back to `rateLimitsByLimitId.codex_other` for weekly data if needed
 3. Local snapshot fallback in `data/source-snapshot.json`
 
+If `wham/usage` fails, the app now classifies the failure as `timeout`, `transport`, `auth`, or `status`, then retries the local app-server in `auto` mode before falling back to local snapshot data.
+
 The live source provides:
 
 - 5-hour quota remaining percentage
@@ -101,6 +103,7 @@ The fallback snapshot format is intentionally simple:
 - Mac wake and screen unlock trigger one immediate refresh, then retry at 5s, 15s, 30s, and 60s if needed
 - Wake retry sequences stop after the first successful live refresh
 - Failure paths enter backoff and keep the next refresh chain alive
+- In `auto` mode, live quota reads try `wham/usage` first and then the local app-server before they give up to local snapshot data
 - After a long sleep, stale local state is re-anchored to the current 5-hour window
 - Flow advice stays short, local, and non-intrusive
 - Burn-rate analysis is computed locally from quota snapshots only and does not inspect chats, prompts, or code content

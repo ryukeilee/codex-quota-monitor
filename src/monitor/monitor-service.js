@@ -420,7 +420,20 @@ export async function createMonitorService({
       let refreshAt = now.toISOString();
 
       try {
-        const liveRateLimits = await readLiveRateLimits({ cwd: workspaceRoot });
+        const liveRateLimits = await readLiveRateLimits({
+          cwd: workspaceRoot,
+          onSourceAttemptFailure: ({ sourceOrigin, kind, error }) => {
+            if (sourceOrigin !== 'wham_usage') {
+              return;
+            }
+
+            logger.info({
+              sourceOrigin,
+              failureKind: kind,
+              failureStatus: error?.status ?? null
+            }, 'wham usage attempt failed, falling back to app-server');
+          }
+        });
         const liveSnapshot = {
           sourceLabel: liveRateLimits.sourceLabel,
           limit: liveRateLimits.primary.limit,

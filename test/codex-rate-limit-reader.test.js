@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import {
   buildCodexSpawnEnv,
+  classifyWhamUsageFailure,
   normalizeRateLimitsResponse,
   readLiveRateLimits,
   resolveCodexExecutablePath,
@@ -174,6 +175,56 @@ test('resolveNodeExecutablePath prefers an explicit executable path and keeps it
   assert.ok(spawnEnv.PATH.split(path.delimiter).includes(tempDir));
 });
 
+function createFakeCodexAppServer(tempDir, payload) {
+  const handlerPath = path.join(tempDir, 'app-server-handler.mjs');
+  const executablePath = path.join(tempDir, 'codex');
+  const handlerSource = `
+const payload = ${JSON.stringify(payload)};
+let buffer = '';
+
+function emit(message) {
+  process.stdout.write(JSON.stringify(message) + '\\n');
+}
+
+function handleLine(line) {
+  if (!line) {
+    return;
+  }
+
+  const message = JSON.parse(line);
+
+  if (message.method === 'initialize') {
+    emit({ id: message.id, result: { capabilities: {} } });
+    return;
+  }
+
+  if (message.method === 'account/rateLimits/read') {
+    emit({ id: message.id, result: payload });
+  }
+}
+
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => {
+  buffer += chunk;
+  let newlineIndex = buffer.indexOf('\\n');
+
+  while (newlineIndex >= 0) {
+    const line = buffer.slice(0, newlineIndex).trim();
+    buffer = buffer.slice(newlineIndex + 1);
+    handleLine(line);
+    newlineIndex = buffer.indexOf('\\n');
+  }
+});
+`;
+
+  fs.writeFileSync(handlerPath, handlerSource);
+  fs.writeFileSync(executablePath, `#!/bin/sh
+exec ${JSON.stringify(process.execPath)} ${JSON.stringify(handlerPath)} "$@"
+`);
+  fs.chmodSync(executablePath, 0o755);
+  return executablePath;
+}
+
 test('readLiveRateLimits prefers wham usage in auto mode for ChatGPT auth', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-auth-'));
   const authFilePath = path.join(tempDir, 'auth.json');
@@ -241,6 +292,84 @@ test('readLiveRateLimits prefers wham usage in auto mode for ChatGPT auth', asyn
     assert.equal(result.secondary.remainingPercent, 31);
     assert.equal(result.individualLimit.remainingPercent, 88);
   } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('classifyWhamUsageFailure groups wham failures into timeout transport auth and status', () => {
+  assert.equal(classifyWhamUsageFailure(Object.assign(new Error('wham usage request timed out'), {
+    name: 'AbortError'
+  })), 'timeout');
+
+  assert.equal(classifyWhamUsageFailure(Object.assign(new Error('error sending request for url (https://chatgpt.com/backend-api/wham/usage)'), {
+    code: 'ECONNRESET'
+  })), 'transport');
+
+  assert.equal(classifyWhamUsageFailure(Object.assign(new Error('GET https://chatgpt.com/backend-api/wham/usage failed: 403; content-type=application/json; body={}'), {
+    status: 403
+  })), 'auth');
+
+  assert.equal(classifyWhamUsageFailure(Object.assign(new Error('GET https://chatgpt.com/backend-api/wham/usage failed: 500; content-type=application/json; body={}'), {
+    status: 500
+  })), 'status');
+});
+
+test('readLiveRateLimits falls back to app-server after a wham transport failure in auto mode', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-fallback-'));
+  const authFilePath = path.join(tempDir, 'auth.json');
+  const previousCodexBin = process.env.CODEX_BIN;
+  const executablePath = createFakeCodexAppServer(tempDir, {
+    rateLimitsByLimitId: {
+      codex: {
+        primary: {
+          usedPercent: 18,
+          windowDurationMins: 300,
+          resetsAt: 1791234567
+        },
+        secondary: {
+          usedPercent: 44,
+          windowDurationMins: 10080,
+          resetsAt: 1791235567
+        },
+        credits: null,
+        planType: 'pro',
+        rateLimitReachedType: null
+      }
+    }
+  });
+
+  fs.writeFileSync(authFilePath, JSON.stringify({
+    auth_mode: 'chatgpt',
+    tokens: {
+      access_token: 'test-access-token',
+      account_id: 'acct-test-123'
+    }
+  }));
+  process.env.CODEX_BIN = executablePath;
+
+  try {
+    const attempts = [];
+    const result = await readLiveRateLimits({
+      authFilePath,
+      timeoutMs: 1000,
+      fetchImpl: async () => {
+        const error = new Error('error sending request for url (https://chatgpt.com/backend-api/wham/usage)');
+        error.code = 'ECONNRESET';
+        throw error;
+      },
+      onSourceAttemptFailure: (failure) => {
+        attempts.push(failure);
+      }
+    });
+
+    assert.equal(attempts.length, 1);
+    assert.equal(attempts[0].sourceOrigin, 'wham_usage');
+    assert.equal(attempts[0].kind, 'transport');
+    assert.equal(result.sourceOrigin, 'codex_app_server');
+    assert.equal(result.primary.remainingPercent, 82);
+    assert.equal(result.secondary.remainingPercent, 56);
+  } finally {
+    process.env.CODEX_BIN = previousCodexBin;
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });

@@ -223,7 +223,44 @@ test('refresh watchdog rejects the hanging refresh so callers can recover', asyn
 
   assert.ok(patches.some((patch) => patch.phase === 'failed' && patch.failureReason === '刷新超时'));
   assert.equal(scheduler.getSnapshot().hasInFlightRefresh, false);
+  assert.equal(scheduler.getSnapshot().schedulerState, 'backoff');
+});
+
+test('refresh watchdog re-enters the scheduling chain after a timeout', async () => {
+  const clock = createFakeClock();
+  let callCount = 0;
+  const scheduler = createRefreshScheduler({
+    runRefresh: async () => {
+      callCount += 1;
+      if (callCount === 1) {
+        return new Promise(() => {});
+      }
+
+      return createDashboard({
+        refreshInterval: 60 * 1000
+      });
+    },
+    now: clock.now,
+    setTimeoutFn: clock.setTimeoutFn,
+    clearTimeoutFn: clock.clearTimeoutFn,
+    refreshTimeoutMs: 10 * 1000
+  });
+
+  scheduler.start(createDashboard());
+  const firstRefresh = scheduler.requestRefresh({
+    reason: 'manual'
+  });
+
+  await clock.advanceBy(10 * 1000);
+  await assert.rejects(firstRefresh, /刷新超时/);
+
+  assert.equal(scheduler.getSnapshot().schedulerState, 'backoff');
+  assert.equal(scheduler.getSnapshot().hasTimer, true);
+
+  await clock.advanceBy(30 * 1000);
+  assert.equal(callCount, 2);
   assert.equal(scheduler.getSnapshot().schedulerState, 'idle');
+  assert.equal(scheduler.getSnapshot().hasTimer, true);
 });
 
 test('sleep and wake retries trigger an immediate refresh before the retry chain continues', async () => {

@@ -39,6 +39,8 @@ npm run build:app
 2. 本机 Codex app-server 的 `account/rateLimits/read` 实时数据，优先使用 `rateLimitsByLimitId.codex` 桶；如果它只有 `primary`，则用 `rateLimitsByLimitId.codex_other` 补充周额度，兼容旧的 `rateLimits` 单桶视图
 3. `data/source-snapshot.json` 的本地快照回退
 
+如果 `wham/usage` 失败，应用会把失败细分为 `timeout`、`transport`、`auth`、`status` 四类，并在 `auto` 模式下继续尝试本机 app-server，再回退到本地快照。
+
 实时数据会提供：
 
 - 5 小时窗口剩余百分比
@@ -102,6 +104,7 @@ npm run build:app
 - Mac 唤醒和解锁桌面后会先立即刷新一次，必要时再按 5 秒、15 秒、30 秒、60 秒重试
 - 任意一次唤醒后的实时刷新成功后会取消后续重试
 - 失败路径会进入退避，并保持后续刷新链路继续可用
+- `auto` 模式下，实时额度读取会先试 `wham/usage`，失败后再试本机 app-server，最后才回到本地快照
 - 长时间睡眠后，会把旧的本地状态重新锚定到当前 5 小时窗口
 - 开发心流建议始终保持简短、克制、可执行
 - 额度消耗速度分析只基于本地额度快照计算，不读取聊天内容，也不记录 prompt 或代码内容

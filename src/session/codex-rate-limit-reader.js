@@ -596,7 +596,7 @@ export async function readLiveRateLimits({
   const auth = readAuthJson(authFilePath);
   const canUseWham = auth?.auth_mode === 'chatgpt';
   const sourceOrder = sourcePreference === 'auto'
-    ? ['app_server', ...(canUseWham ? ['wham_usage'] : [])]
+    ? (canUseWham ? ['wham_usage', 'app_server'] : ['app_server'])
     : sourcePreference === 'wham_usage'
       ? ['wham_usage']
       : ['app_server', ...(canUseWham ? ['wham_usage'] : [])];

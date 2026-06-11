@@ -243,6 +243,60 @@ async function copyEntry(entry) {
   });
 }
 
+async function pruneBundledRuntime() {
+  // The outer Electron.app already ships the runtime.
+  // Keeping a second copy under Resources/app/node_modules/electron is redundant.
+  await fs.rm(path.join(bundleAppPath, 'node_modules', 'electron'), {
+    recursive: true,
+    force: true
+  });
+}
+
+async function pruneBundledDevFiles() {
+  const nodeModulesDir = path.join(bundleAppPath, 'node_modules');
+  const pruneDirNames = new Set([
+    'test',
+    'tests',
+    '__tests__',
+    'example',
+    'examples',
+    'docs',
+    'doc'
+  ]);
+  const pruneFilePatterns = [
+    /\.map$/,
+    /\.d\.ts$/,
+    /(^|\/)(README|Readme|readme)\.[^/]+$/,
+    /(^|\/)(CHANGELOG|Changelog|changelog)\.[^/]+$/,
+    /(^|\/)(\.github|examples?|docs?|test)s?(\/|$)/
+  ];
+
+  async function walk(currentDir, relativeDir = '') {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const entryPath = path.join(currentDir, entry.name);
+      const relativePath = path.join(relativeDir, entry.name).split(path.sep).join('/');
+
+      if (entry.isDirectory()) {
+        if (pruneDirNames.has(entry.name)) {
+          await fs.rm(entryPath, { recursive: true, force: true });
+          continue;
+        }
+
+        await walk(entryPath, relativePath);
+        continue;
+      }
+
+      if (pruneFilePatterns.some((pattern) => pattern.test(relativePath))) {
+        await fs.rm(entryPath, { force: true });
+      }
+    }
+  }
+
+  await walk(nodeModulesDir);
+}
+
 async function main() {
   await fs.access(templateApp);
   await fs.rm(bundlePath, { recursive: true, force: true });
@@ -260,6 +314,9 @@ async function main() {
   for (const entry of appEntries) {
     await copyEntry(entry);
   }
+
+  await pruneBundledRuntime();
+  await pruneBundledDevFiles();
 
   const bundleResourcesDir = path.join(bundlePath, 'Contents', 'Resources');
   await buildIconFiles(bundleResourcesDir);

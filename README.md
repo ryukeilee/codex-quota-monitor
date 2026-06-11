@@ -34,7 +34,7 @@ The app prefers the authenticated ChatGPT `wham/usage` quota endpoint, then fall
 Source priority:
 
 1. Live `https://chatgpt.com/backend-api/wham/usage` data from the authenticated ChatGPT account
-2. Live `account/rateLimits/read` data from the local Codex app-server, preferring the `rateLimitsByLimitId.codex` bucket when available
+2. Live `account/rateLimits/read` data from the local Codex app-server, preferring the `rateLimitsByLimitId.codex` bucket when available and falling back to `rateLimitsByLimitId.codex_other` for weekly data if needed
 3. Local snapshot fallback in `data/source-snapshot.json`
 
 The live source provides:

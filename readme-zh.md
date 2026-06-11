@@ -34,7 +34,7 @@ npm run build:app
 数据源优先级：
 
 1. 已登录 ChatGPT 账号的 `https://chatgpt.com/backend-api/wham/usage` 实时数据
-2. 本机 Codex app-server 的 `account/rateLimits/read` 实时数据，优先使用 `rateLimitsByLimitId.codex` 桶，兼容旧的 `rateLimits` 单桶视图
+2. 本机 Codex app-server 的 `account/rateLimits/read` 实时数据，优先使用 `rateLimitsByLimitId.codex` 桶；如果它只有 `primary`，则用 `rateLimitsByLimitId.codex_other` 补充周额度，兼容旧的 `rateLimits` 单桶视图
 3. `data/source-snapshot.json` 的本地快照回退
 
 实时数据会提供：

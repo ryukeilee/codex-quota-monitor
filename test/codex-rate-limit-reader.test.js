@@ -93,6 +93,40 @@ test('normalizeRateLimitsResponse prefers the codex bucket from rateLimitsByLimi
   assert.equal(result.secondary.windowDurationMins, 10080);
 });
 
+test('normalizeRateLimitsResponse accepts a primary-only codex bucket and falls back to codex_other for weekly data', () => {
+  const result = normalizeRateLimitsResponse({
+    rateLimitsByLimitId: {
+      codex: {
+        limitId: 'codex',
+        primary: {
+          usedPercent: 25,
+          windowDurationMins: 300,
+          resetsAt: 1791234567
+        },
+        secondary: null,
+        rateLimitReachedType: null
+      },
+      codex_other: {
+        limitId: 'codex_other',
+        primary: {
+          usedPercent: 42,
+          windowDurationMins: 10080,
+          resetsAt: 1791235567
+        },
+        secondary: null,
+        rateLimitReachedType: null
+      }
+    }
+  });
+
+  assert.ok(result);
+  assert.equal(result.primary.used, 25);
+  assert.equal(result.primary.remainingPercent, 75);
+  assert.equal(result.secondary.used, 42);
+  assert.equal(result.secondary.remainingPercent, 58);
+  assert.equal(result.secondary.windowDurationMins, 10080);
+});
+
 test('resolveCodexExecutablePath prefers an explicit executable path', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-bin-'));
   const executablePath = path.join(tempDir, 'codex');

@@ -133,16 +133,25 @@ function normalizeWhamUsageResponse(response) {
 
 export function normalizeRateLimitsResponse(response) {
   const rateLimitsByLimitId = response?.rateLimitsByLimitId ?? response?.result?.rateLimitsByLimitId ?? {};
-  const preferredRateLimits = rateLimitsByLimitId.codex ?? response?.rateLimits ?? response?.result?.rateLimits;
-  if (!preferredRateLimits?.primary || !preferredRateLimits?.secondary) {
+  const fallbackRateLimits = response?.rateLimits ?? response?.result?.rateLimits ?? null;
+  const codexBucket = rateLimitsByLimitId.codex ?? null;
+  const codexOtherBucket = rateLimitsByLimitId.codex_other ?? null;
+  const preferredRateLimits = codexBucket ?? fallbackRateLimits;
+
+  if (!preferredRateLimits?.primary) {
     return null;
   }
+
+  const preferredSecondary = preferredRateLimits.secondary
+    ?? codexOtherBucket?.primary
+    ?? fallbackRateLimits?.secondary
+    ?? null;
 
   return {
     sourceLabel: 'codex-account-rate-limits',
     sourceOrigin: 'codex_app_server',
     primary: normalizeUsedPercentWindow(preferredRateLimits.primary),
-    secondary: normalizeUsedPercentWindow(preferredRateLimits.secondary),
+    secondary: preferredSecondary ? normalizeUsedPercentWindow(preferredSecondary) : null,
     credits: preferredRateLimits.credits ?? null,
     planType: preferredRateLimits.planType ?? null,
     rateLimitReachedType: preferredRateLimits.rateLimitReachedType ?? null,

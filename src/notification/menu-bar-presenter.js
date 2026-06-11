@@ -9,23 +9,9 @@ import {
 import {
   buildQuotaHealthStatus,
   formatQuotaHealthReason,
-  formatQuotaHealthSourceLabel,
   formatQuotaHealthStatusLabel,
   formatQuotaHealthTime
 } from '../core/quota-health.js';
-
-function formatClockTime(value) {
-  if (!value) {
-    return '暂无';
-  }
-
-  return new Date(value).toLocaleTimeString('zh-CN', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-}
 
 function formatUpdateLabel(value) {
   if (!value) {
@@ -37,21 +23,6 @@ function formatUpdateLabel(value) {
     hour: '2-digit',
     minute: '2-digit'
   })}`;
-}
-
-function isDataExpired(lastSuccessAt, now = new Date()) {
-  if (!lastSuccessAt) {
-    return false;
-  }
-
-  const lastSuccessTime = new Date(lastSuccessAt).getTime();
-  const nowTime = new Date(now).getTime();
-
-  if (!Number.isFinite(lastSuccessTime) || !Number.isFinite(nowTime)) {
-    return false;
-  }
-
-  return nowTime - lastSuccessTime > 10 * 60 * 1000;
 }
 
 function formatPredictionState(prediction) {
@@ -146,7 +117,7 @@ function formatBurnRateLabel(quotaBurnRate) {
   return `消耗 ${paceLabel} · 约 ${hoursLabel}`;
 }
 
-function formatRefreshActionLabel(refreshStatus, healthStatus, now = new Date()) {
+function formatRefreshActionLabel(refreshStatus, healthStatus) {
   if (refreshStatus?.phase === 'refreshing') {
     return '正在刷新...';
   }
@@ -160,7 +131,7 @@ function formatRefreshActionLabel(refreshStatus, healthStatus, now = new Date())
   }
 
   if (refreshStatus?.phase === 'success' || refreshStatus?.phase === 'using_snapshot') {
-    return `刷新成功 · ${formatQuotaHealthTime(healthStatus?.lastSuccessfulRefreshAt ?? refreshStatus?.lastSuccessAt ?? refreshStatus?.lastAttemptAt ?? null)}`;
+    return '立即刷新';
   }
 
   return '立即刷新';
@@ -176,10 +147,6 @@ function formatTrayTitle(summary, weeklySummary, preferences) {
   }
 
   return `${weeklySummary.remainingPercent}%`;
-}
-
-function formatTimeLabel(value) {
-  return value ? formatClockTime(value) : '暂无';
 }
 
 export function formatRefreshLabel(intervalMs) {
@@ -235,13 +202,11 @@ export function buildMenuBarState(dashboard, { now = new Date() } = {}) {
   const statusLabel = formatStatusLabel(refreshStatus, quotaAlertStatus);
   const burnRateLabel = formatBurnRateLabel(dashboard.quotaBurnRate);
   const adviceLabel = formatAdviceLabel(dashboard.flowAdvice, dashboard.prediction);
-  const refreshActionLabel = formatRefreshActionLabel(refreshStatus, quotaHealth, now);
+  const refreshActionLabel = formatRefreshActionLabel(refreshStatus, quotaHealth);
   const refreshActionEnabled = refreshStatus.phase !== 'refreshing' && refreshStatus.phase !== 'sleep_recovering';
   const updateLabel = formatUpdateLabel(lastSuccessAt ?? dashboard.refreshedAt ?? null);
   const healthStatusLabel = `数据状态：${formatQuotaHealthStatusLabel(quotaHealth)}`;
-  const healthSourceLabel = `数据源：${formatQuotaHealthSourceLabel(quotaHealth)}`;
   const healthUpdateLabel = `更新时间：${formatQuotaHealthTime(quotaHealth.lastSuccessfulRefreshAt ?? lastSuccessAt ?? dashboard.refreshedAt ?? null)}`;
-  const healthNextRefreshLabel = `下一次刷新：${formatQuotaHealthTime(quotaHealth.nextAutoRefreshAt ?? refreshStatus.nextScheduledRefreshAt ?? null)}`;
   const healthReasonLabel = quotaHealth.level === 'healthy'
     ? null
     : `原因：${formatQuotaHealthReason(quotaHealth)}`;
@@ -256,9 +221,7 @@ export function buildMenuBarState(dashboard, { now = new Date() } = {}) {
     lines: {
       overviewLabel,
       statusLabel: healthStatusLabel,
-      sourceLabel: healthSourceLabel,
       updateLabel: healthUpdateLabel,
-      nextRefreshLabel: healthNextRefreshLabel,
       reasonLabel: healthReasonLabel,
       burnRateLabel,
       adviceLabel,

@@ -76,9 +76,7 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   assert.equal(state.toolTip, 'Codex Monitor：周 87% · 5小时 64% · 正常 · 数据正常 · 实时数据');
   assert.equal(state.lines.overviewLabel, '周 87% · 5小时 64%');
   assert.equal(state.lines.statusLabel, '数据状态：正常');
-  assert.equal(state.lines.sourceLabel, '数据源：app-server');
   assert.equal(state.lines.updateLabel, '更新时间：18:12');
-  assert.equal(state.lines.nextRefreshLabel, '下一次刷新：18:17');
   assert.equal(state.lines.reasonLabel, null);
   assert.equal(state.lines.burnRateLabel, '消耗 平稳 · 约 12h');
   assert.equal(state.lines.adviceLabel, '建议 适合小步推进');
@@ -124,9 +122,7 @@ test('buildMenuBarState shows delayed health metadata when data is older than 10
   });
 
   assert.equal(state.lines.statusLabel, '数据状态：延迟');
-  assert.equal(state.lines.sourceLabel, '数据源：app-server');
   assert.equal(state.lines.updateLabel, '更新时间：18:00');
-  assert.equal(state.lines.nextRefreshLabel, '下一次刷新：18:05');
   assert.equal(state.lines.reasonLabel, '原因：数据更新较慢');
 });
 
@@ -198,7 +194,6 @@ test('buildMenuBarState keeps the tray title as a plain percentage when quota is
   assert.equal(state.title, '87%');
   assert.equal(state.lines.overviewLabel, '周 87% · 5小时 12%');
   assert.equal(state.lines.statusLabel, '数据状态：正常');
-  assert.equal(state.lines.sourceLabel, '数据源：app-server');
   assert.equal(state.lines.burnRateLabel, '消耗 很快 · 约 1h');
 });
 
@@ -402,7 +397,7 @@ test('buildMenuBarState surfaces manual refresh outcomes in the action label', (
     now: '2026-06-06T10:12:40.000Z'
   });
 
-  assert.equal(state.refreshAction.label, '刷新成功 · 18:12');
+  assert.equal(state.refreshAction.label, '立即刷新');
   assert.equal(state.refreshAction.enabled, true);
 });
 
@@ -440,7 +435,6 @@ test('buildMenuBarState reports refresh failure in the action label', () => {
 
   assert.equal(state.refreshAction.label, '刷新失败');
   assert.equal(state.lines.statusLabel, '数据状态：不可用');
-  assert.equal(state.lines.sourceLabel, '数据源：未知来源');
 });
 
 test('buildMenuBarState reports cached fallback data explicitly', () => {
@@ -490,7 +484,6 @@ test('buildMenuBarState reports cached fallback data explicitly', () => {
 
   assert.equal(state.refreshAction.label, '刷新失败 · 使用缓存');
   assert.equal(state.lines.statusLabel, '数据状态：使用缓存');
-  assert.equal(state.lines.sourceLabel, '数据源：本地快照');
   assert.equal(state.lines.reasonLabel, '原因：实时数据源失败');
 });
 
@@ -528,9 +521,7 @@ test('buildMenuBarState handles unavailable live quota data gracefully', () => {
   assert.equal(state.toolTip, 'Codex Monitor：周 暂无 · 5小时 暂无 · 暂无 · 数据不可用 · 请检查 Codex 登录状态或网络');
   assert.equal(state.lines.overviewLabel, '周 暂无 · 5小时 暂无');
   assert.equal(state.lines.statusLabel, '数据状态：不可用');
-  assert.equal(state.lines.sourceLabel, '数据源：未知来源');
   assert.equal(state.lines.updateLabel, '更新时间：11:16');
-  assert.equal(state.lines.nextRefreshLabel, '下一次刷新：11:21');
   assert.equal(state.lines.reasonLabel, '原因：codex app-server request timed out');
   assert.equal(state.lines.adviceLabel, '建议 先等数据');
 });

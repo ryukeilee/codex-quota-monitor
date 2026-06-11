@@ -1,4 +1,4 @@
-import { app, Menu, Notification, Tray, clipboard, ipcMain, nativeImage, powerMonitor } from 'electron';
+import { app, Menu, Notification, Tray, ipcMain, nativeImage, powerMonitor } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -114,15 +114,7 @@ function updateTray(dashboard) {
       enabled: false
     },
     {
-      label: menuBarState.lines.sourceLabel,
-      enabled: false
-    },
-    {
       label: menuBarState.lines.updateLabel,
-      enabled: false
-    },
-    {
-      label: menuBarState.lines.nextRefreshLabel,
       enabled: false
     },
     ...(menuBarState.lines.reasonLabel
@@ -169,20 +161,6 @@ function updateTray(dashboard) {
             }, 'manual refresh failed');
           }
         }
-      }
-    },
-    {
-      label: '复制诊断信息',
-      enabled: true,
-      click: () => {
-        if (!monitorService) {
-          return;
-        }
-
-        const diagnosticText = monitorService.getDiagnosticsText({
-          dashboard: currentDashboard ?? dashboard
-        });
-        clipboard.writeText(diagnosticText);
       }
     },
     {

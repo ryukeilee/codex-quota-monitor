@@ -12,6 +12,7 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - Automatic refresh with a unified low-frequency scheduler
 - Manual refresh shows a clear busy state so it is obvious when a refresh is in progress
 - After manual refresh completes, the app re-reads the latest dashboard before repainting the UI, so the view stays aligned with the underlying data
+- When weekly quota is temporarily unavailable, the tray keeps weekly fields as unavailable instead of substituting the 5-hour value
 - Tray menu stays compact and only surfaces the most important status at a glance
 - HUD-style dashboard with a single-screen control layout, status radar, and reactor-like quota readout
 - Quota burn rate analysis that answers whether the current pace is too fast, how long it can last, and whether intensity should be lowered
@@ -71,6 +72,7 @@ The fallback snapshot format is intentionally simple:
 ## System Tray
 
 - Shows weekly remaining quota as a plain native-style percentage
+- Shows `--` in the title and `Weekly unavailable` state semantics when live data has no weekly quota yet
 - Surfaces a compact overview first so the tray stays easy to scan
 - Keeps deeper details out of the first glance
 - Keeps manual refresh separate from settings toggles

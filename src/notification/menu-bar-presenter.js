@@ -74,7 +74,7 @@ function formatOverviewLabel(summary, weeklySummary) {
     : '暂无';
   const weeklyRemainingPercent = weeklySummary
     ? `${weeklySummary.remainingPercent}%`
-    : (summary ? `${summary.remainingPercent}%` : '暂无');
+    : '暂无';
 
   return `周 ${weeklyRemainingPercent} · 5小时 ${windowRemainingPercent}`;
 }
@@ -125,16 +125,11 @@ function formatTrayTitle(summary, weeklySummary, preferences) {
     return '';
   }
 
-  if (!summary && !weeklySummary) {
+  if (!weeklySummary) {
     return '--';
   }
 
-  const titleSummary = weeklySummary ?? summary;
-  if (!titleSummary) {
-    return '--';
-  }
-
-  return `${titleSummary.remainingPercent}%`;
+  return `${weeklySummary.remainingPercent}%`;
 }
 
 function formatTimeLabel(value) {

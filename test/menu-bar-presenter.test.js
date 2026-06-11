@@ -201,6 +201,54 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
   assert.equal(state.lines.overviewLabel, '周 87% · 5小时 12%');
 });
 
+test('buildMenuBarState does not substitute 5h data for missing weekly quota', () => {
+  const state = buildMenuBarState({
+    refreshedAt: '2026-06-06T10:12:00.000Z',
+    refreshStatus: {
+      phase: 'success',
+      dataSource: 'codex_app_server',
+      freshness: 'fresh',
+      lastAttemptAt: '2026-06-06T10:12:00.000Z',
+      lastSuccessAt: '2026-06-06T10:12:00.000Z',
+      lastFailureAt: null,
+      nextScheduledRefreshAt: '2026-06-06T10:17:00.000Z',
+      failureReason: null,
+      isRetryingAfterWake: false,
+      retryAttempt: null
+    },
+    summary: {
+      remainingPercent: 64,
+      remaining: 64,
+      used: 36,
+      limit: 100,
+      presentation: 'percent',
+      windowState: 'healthy',
+      nextRecoveryAt: '2026-06-06T10:30:00.000Z'
+    },
+    weeklySummary: null,
+    prediction: {
+      recommendedIntensity: 'current'
+    },
+    flowAdvice: {
+      level: 'unknown',
+      title: '先等数据',
+      message: '周额度暂时不可用。',
+      recommendedWork: ['刷新数据'],
+      avoidWork: ['按周额度做判断'],
+      basedOnStaleData: false
+    },
+    preferences: {
+      isActive: true,
+      isHighIntensity: false,
+      showPercentageInMenuBar: true
+    },
+    refreshInterval: 300000
+  });
+
+  assert.equal(state.title, '--');
+  assert.equal(state.lines.overviewLabel, '周 暂无 · 5小时 64%');
+});
+
 test('buildMenuBarState shows a busy refresh action while refreshing', () => {
   const state = buildMenuBarState({
     refreshedAt: '2026-06-06T10:12:00.000Z',

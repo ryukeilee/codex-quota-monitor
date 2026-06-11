@@ -10,6 +10,13 @@ import { createSnapshotSourceRouter } from '../session/snapshot-source-router.js
 import { readLiveRateLimits } from '../session/codex-rate-limit-reader.js';
 import { readDashboardArtifact, writeDashboardArtifact } from '../utils/dashboard-artifact.js';
 import {
+  buildQuotaHealthStatus
+} from '../core/quota-health.js';
+import {
+  createDiagnosticsStore,
+  sanitizeDiagnosticMessage
+} from './diagnostics.js';
+import {
   createRefreshStatus,
   computeFreshness
 } from '../core/refresh-status.js';
@@ -62,12 +69,76 @@ export async function createMonitorService({
   let lastForcedRefreshAt = null;
   let refreshRecoveryTimer = null;
   let refreshRecoveryToken = 0;
+  const diagnostics = createDiagnosticsStore({
+    storageRoot
+  });
 
   function clearRefreshRecoveryTimer() {
     if (refreshRecoveryTimer) {
       clearTimeout(refreshRecoveryTimer);
       refreshRecoveryTimer = null;
     }
+  }
+
+  function normalizeDiagnosticSource(dashboard, refreshSource = null) {
+    const source = refreshSource
+      ?? dashboard?.refreshStatus?.dataSource
+      ?? dashboard?.source?.origin
+      ?? 'unknown';
+
+    if (source === 'wham_usage') {
+      return 'wham_usage';
+    }
+
+    if (source === 'codex_app_server') {
+      return 'codex_app_server';
+    }
+
+    if (source === 'local_snapshot' || source === 'memory_cache') {
+      return 'snapshot_fallback';
+    }
+
+    return 'unknown';
+  }
+
+  function classifyRefreshError(error) {
+    if (typeof error?.kind === 'string' && error.kind) {
+      return error.kind;
+    }
+
+    if (typeof error?.code === 'string' && error.code) {
+      return error.code;
+    }
+
+    const message = `${error?.message ?? ''} ${error?.cause?.message ?? ''}`.toLowerCase();
+    if (message.includes('timed out')) {
+      return 'timeout';
+    }
+
+    if (message.includes('auth') || message.includes('login')) {
+      return 'auth';
+    }
+
+    if (message.includes('status')) {
+      return 'status';
+    }
+
+    return 'unknown';
+  }
+
+  function recordRefreshDiagnostic({
+    reason,
+    result,
+    dashboard: diagnosticDashboard,
+    refreshSource = null,
+    message = 'ok'
+  }) {
+    diagnostics.recordRefreshEvent({
+      reason,
+      result,
+      source: normalizeDiagnosticSource(diagnosticDashboard, refreshSource),
+      message: sanitizeDiagnosticMessage(message)
+    });
   }
 
   function scheduleRefreshRecoveryTimer() {
@@ -286,10 +357,25 @@ export async function createMonitorService({
       lastSuccessfulRefreshAt: lastSuccessAt,
       lastRefreshStartedAt: refreshStatus.lastAttemptAt,
       lastRefreshError: refreshStatus.failureReason,
+      lastRefreshReason: refreshStatus.lastRefreshReason,
+      lastErrorCode: refreshStatus.lastErrorCode,
+      lastErrorMessage: refreshStatus.lastErrorMessage,
       lastForcedRefreshAt,
       isStale: computeIsStale({
         lastSuccessfulRefreshAt: lastSuccessAt,
         refreshInterval: currentDashboard.refreshInterval
+      }),
+      quotaHealth: buildQuotaHealthStatus({
+        ...currentDashboard,
+        source: {
+          ...currentDashboard.source,
+          origin: currentDashboard.source?.origin ?? dataSource
+        },
+        refreshStatus: createRefreshStatus({
+          ...refreshStatus,
+          dataSource,
+          lastSuccessAt
+        })
       })
     };
     onUpdated(dashboard);
@@ -357,10 +443,17 @@ export async function createMonitorService({
       if (dashboard) {
         refreshStatus = createRefreshStatus({
           ...refreshStatus,
-          lastAttemptAt: startedAt
+          lastAttemptAt: startedAt,
+          lastRefreshReason: reason
         });
         scheduleRefreshRecoveryTimer();
         publishDashboard(dashboard);
+        recordRefreshDiagnostic({
+          reason,
+          result: 'skipped',
+          dashboard,
+          message: 'in-flight refresh already running'
+        });
       }
       return dashboard;
     }
@@ -379,10 +472,17 @@ export async function createMonitorService({
       if (dashboard) {
         refreshStatus = createRefreshStatus({
           ...refreshStatus,
-          lastAttemptAt: startedAt
+          lastAttemptAt: startedAt,
+          lastRefreshReason: reason
         });
         scheduleRefreshRecoveryTimer();
         publishDashboard(dashboard);
+        recordRefreshDiagnostic({
+          reason,
+          result: 'skipped',
+          dashboard,
+          message: 'forced refresh deduped'
+        });
       }
       return dashboard;
       }
@@ -393,6 +493,9 @@ export async function createMonitorService({
       phase: 'refreshing',
       lastAttemptAt: startedAt,
       failureReason: null,
+      lastRefreshReason: reason,
+      lastErrorCode: null,
+      lastErrorMessage: null,
       isRetryingAfterWake: refreshStatus.isRetryingAfterWake || isRetryingAfterWake || reason === 'resume' || reason === 'unlock',
       retryAttempt: retryAttempt ?? refreshStatus.retryAttempt
     });
@@ -414,6 +517,7 @@ export async function createMonitorService({
     const persistedPreferences = database.getPreferences();
     const now = new Date();
     let refreshError = null;
+    let refreshErrorCode = null;
 
     try {
       let refreshSource = 'codex_app_server';
@@ -482,11 +586,15 @@ export async function createMonitorService({
           dataSource: refreshSource,
           lastSuccessAt: refreshAt,
           lastFailureAt: refreshError ? now.toISOString() : refreshStatus.lastFailureAt,
-          failureReason: refreshError
+          failureReason: refreshError,
+          lastRefreshReason: reason,
+          lastErrorCode: null,
+          lastErrorMessage: null
         });
         clearRefreshRecoveryTimer();
       } catch (error) {
         refreshError = error?.message ?? String(error);
+        refreshErrorCode = classifyRefreshError(error);
         logger.info({
           error: refreshError
         }, 'live rate-limit read failed, falling back to cached dashboard or local snapshot data');
@@ -539,7 +647,10 @@ export async function createMonitorService({
             dataSource: refreshSource,
             lastSuccessAt: refreshAt,
             lastFailureAt: now.toISOString(),
-            failureReason: refreshError
+            failureReason: refreshError,
+            lastRefreshReason: reason,
+            lastErrorCode: refreshErrorCode ?? classifyRefreshError(refreshError),
+            lastErrorMessage: sanitizeDiagnosticMessage(refreshError)
           });
           clearRefreshRecoveryTimer();
           logger.info({
@@ -563,7 +674,10 @@ export async function createMonitorService({
               dataSource: refreshSource,
               lastSuccessAt: refreshAt,
               lastFailureAt: now.toISOString(),
-              failureReason: refreshError
+              failureReason: refreshError,
+              lastRefreshReason: reason,
+              lastErrorCode: refreshErrorCode ?? classifyRefreshError(refreshError),
+              lastErrorMessage: sanitizeDiagnosticMessage(refreshError)
             });
             clearRefreshRecoveryTimer();
             logger.info({
@@ -583,7 +697,10 @@ export async function createMonitorService({
               phase: 'failed',
               dataSource: refreshSource,
               lastFailureAt: refreshAt,
-              failureReason: refreshError ?? 'dashboard refresh failed'
+              failureReason: refreshError ?? 'dashboard refresh failed',
+              lastRefreshReason: reason,
+              lastErrorCode: refreshErrorCode ?? classifyRefreshError(refreshError),
+              lastErrorMessage: sanitizeDiagnosticMessage(refreshError ?? 'dashboard refresh failed')
             });
             clearRefreshRecoveryTimer();
           }
@@ -606,6 +723,18 @@ export async function createMonitorService({
       if (dashboard?.summary) {
         writeDashboardArtifact(dashboard, storageRoot);
       }
+      const diagnosticResult = dashboard.summary
+        ? (refreshSource === 'local_snapshot' || refreshSource === 'memory_cache' ? 'fallback' : 'success')
+        : 'failed';
+      recordRefreshDiagnostic({
+        reason,
+        result: diagnosticResult,
+        dashboard,
+        refreshSource,
+        message: diagnosticResult === 'fallback'
+          ? 'live refresh fell back to cached data'
+          : (diagnosticResult === 'success' ? 'live refresh succeeded' : 'dashboard refresh failed')
+      });
       logger.debug({
         reason,
         force,
@@ -615,11 +744,15 @@ export async function createMonitorService({
       return dashboard;
     } catch (error) {
       const errorMessage = error?.message ?? String(error);
+      const errorCode = classifyRefreshError(error);
       refreshStatus = createRefreshStatus({
         ...refreshStatus,
         phase: dashboard?.summary ? 'using_snapshot' : 'failed',
         lastFailureAt: new Date().toISOString(),
-        failureReason: errorMessage
+        failureReason: errorMessage,
+        lastRefreshReason: reason,
+        lastErrorCode: errorCode,
+        lastErrorMessage: sanitizeDiagnosticMessage(errorMessage)
       });
       clearRefreshRecoveryTimer();
       if (dashboard) {
@@ -636,8 +769,21 @@ export async function createMonitorService({
         } else {
           publishDashboard(dashboard);
         }
+        recordRefreshDiagnostic({
+          reason,
+          result: dashboard.summary ? 'fallback' : 'failed',
+          dashboard,
+          refreshSource: dashboard.source?.origin ?? null,
+          message: errorMessage
+        });
       } else {
         publishDashboard(dashboard);
+        recordRefreshDiagnostic({
+          reason,
+          result: 'failed',
+          dashboard,
+          message: errorMessage
+        });
       }
       logger.error({
         reason,
@@ -679,6 +825,14 @@ export async function createMonitorService({
     },
     getDashboard() {
       return dashboard;
+    },
+    getDiagnosticsText() {
+      return diagnostics.buildDiagnosticText({
+        dashboard
+      });
+    },
+    getDiagnosticEvents() {
+      return diagnostics.getRecentEvents();
     },
     setRefreshContext(patch = {}) {
       const nextPatch = {

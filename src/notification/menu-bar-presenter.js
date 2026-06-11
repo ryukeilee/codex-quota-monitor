@@ -6,6 +6,13 @@ import {
   formatFreshness,
   computeFreshness
 } from '../core/refresh-status.js';
+import {
+  buildQuotaHealthStatus,
+  formatQuotaHealthReason,
+  formatQuotaHealthSourceLabel,
+  formatQuotaHealthStatusLabel,
+  formatQuotaHealthTime
+} from '../core/quota-health.js';
 
 function formatClockTime(value) {
   if (!value) {
@@ -139,28 +146,21 @@ function formatBurnRateLabel(quotaBurnRate) {
   return `消耗 ${paceLabel} · 约 ${hoursLabel}`;
 }
 
-function formatRefreshActionLabel(refreshStatus, now = new Date()) {
+function formatRefreshActionLabel(refreshStatus, healthStatus, now = new Date()) {
   if (refreshStatus?.phase === 'refreshing') {
-    return '刷新中…';
+    return '正在刷新...';
   }
 
-  if (refreshStatus?.phase === 'failed') {
-    return '刷新失败';
+  if (healthStatus?.level === 'fallback') {
+    return '刷新失败 · 使用缓存';
   }
 
-  if (refreshStatus?.phase === 'success' && refreshStatus?.lastAttemptAt) {
-    const lastAttemptAt = new Date(refreshStatus.lastAttemptAt).getTime();
-    const nowTime = new Date(now).getTime();
-
-    if (Number.isFinite(lastAttemptAt) && Number.isFinite(nowTime) && nowTime - lastAttemptAt <= 60 * 1000) {
-      return '刚刚已刷新';
-    }
-
-    return '刷新成功';
+  if (refreshStatus?.phase === 'failed' || healthStatus?.level === 'error') {
+    return healthStatus?.isFallback ? '刷新失败 · 使用缓存' : '刷新失败';
   }
 
-  if (refreshStatus?.phase === 'sleep_recovering') {
-    return '唤醒恢复中';
+  if (refreshStatus?.phase === 'success' || refreshStatus?.phase === 'using_snapshot') {
+    return `刷新成功 · ${formatQuotaHealthTime(healthStatus?.lastSuccessfulRefreshAt ?? refreshStatus?.lastSuccessAt ?? refreshStatus?.lastAttemptAt ?? null)}`;
   }
 
   return '立即刷新';
@@ -216,6 +216,13 @@ export function buildMenuBarState(dashboard, { now = new Date() } = {}) {
         now
       })
     });
+  const quotaHealth = dashboard.quotaHealth
+    ?? buildQuotaHealthStatus({
+      ...dashboard,
+      refreshStatus
+    }, {
+      now
+    });
   const refreshLabels = formatRefreshStatus(refreshStatus);
   const quotaAlertStatus = buildQuotaAlertStatus({
     weeklyRemainingPercent: dashboard.weeklySummary?.remainingPercent ?? dashboard.summary?.remainingPercent,
@@ -228,25 +235,31 @@ export function buildMenuBarState(dashboard, { now = new Date() } = {}) {
   const statusLabel = formatStatusLabel(refreshStatus, quotaAlertStatus);
   const burnRateLabel = formatBurnRateLabel(dashboard.quotaBurnRate);
   const adviceLabel = formatAdviceLabel(dashboard.flowAdvice, dashboard.prediction);
-  const refreshActionLabel = formatRefreshActionLabel(refreshStatus, now);
+  const refreshActionLabel = formatRefreshActionLabel(refreshStatus, quotaHealth, now);
   const refreshActionEnabled = refreshStatus.phase !== 'refreshing' && refreshStatus.phase !== 'sleep_recovering';
   const updateLabel = formatUpdateLabel(lastSuccessAt ?? dashboard.refreshedAt ?? null);
-  const freshnessNoticeLabel = isDataExpired(lastSuccessAt ?? dashboard.refreshedAt ?? null, now)
-    ? '数据可能已过期'
-    : null;
+  const healthStatusLabel = `数据状态：${formatQuotaHealthStatusLabel(quotaHealth)}`;
+  const healthSourceLabel = `数据源：${formatQuotaHealthSourceLabel(quotaHealth)}`;
+  const healthUpdateLabel = `更新时间：${formatQuotaHealthTime(quotaHealth.lastSuccessfulRefreshAt ?? lastSuccessAt ?? dashboard.refreshedAt ?? null)}`;
+  const healthNextRefreshLabel = `下一次刷新：${formatQuotaHealthTime(quotaHealth.nextAutoRefreshAt ?? refreshStatus.nextScheduledRefreshAt ?? null)}`;
+  const healthReasonLabel = quotaHealth.level === 'healthy'
+    ? null
+    : `原因：${formatQuotaHealthReason(quotaHealth)}`;
 
   return {
     title: formatTrayTitle(dashboard.summary, dashboard.weeklySummary, dashboard.preferences),
-    toolTip: `Codex Monitor：${overviewLabel} · ${quotaAlertTooltipLabel} · ${refreshLabels.phaseLabel}`,
+    toolTip: `Codex Monitor：${overviewLabel} · ${quotaAlertTooltipLabel} · ${quotaHealth.message}`,
     refreshAction: {
       label: refreshActionLabel,
       enabled: refreshActionEnabled
     },
     lines: {
       overviewLabel,
-      statusLabel,
-      updateLabel,
-      freshnessNoticeLabel,
+      statusLabel: healthStatusLabel,
+      sourceLabel: healthSourceLabel,
+      updateLabel: healthUpdateLabel,
+      nextRefreshLabel: healthNextRefreshLabel,
+      reasonLabel: healthReasonLabel,
       burnRateLabel,
       adviceLabel,
       refreshLabel: formatRefreshLabel(dashboard.refreshInterval)

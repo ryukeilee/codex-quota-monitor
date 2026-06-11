@@ -43,6 +43,9 @@ const DEFAULT_REFRESH_STATUS = {
   lastFailureAt: null,
   nextScheduledRefreshAt: null,
   failureReason: null,
+  lastRefreshReason: null,
+  lastErrorCode: null,
+  lastErrorMessage: null,
   schedulerState: 'idle',
   isRetryingAfterWake: false,
   retryAttempt: null
@@ -73,6 +76,9 @@ export function createRefreshStatus(overrides = {}) {
     lastFailureAt: toIsoOrNull(overrides.lastFailureAt ?? DEFAULT_REFRESH_STATUS.lastFailureAt),
     nextScheduledRefreshAt: toIsoOrNull(overrides.nextScheduledRefreshAt ?? DEFAULT_REFRESH_STATUS.nextScheduledRefreshAt),
     failureReason: overrides.failureReason ?? DEFAULT_REFRESH_STATUS.failureReason,
+    lastRefreshReason: overrides.lastRefreshReason ?? DEFAULT_REFRESH_STATUS.lastRefreshReason,
+    lastErrorCode: overrides.lastErrorCode ?? DEFAULT_REFRESH_STATUS.lastErrorCode,
+    lastErrorMessage: overrides.lastErrorMessage ?? DEFAULT_REFRESH_STATUS.lastErrorMessage,
     schedulerState: normalizeValue(overrides.schedulerState ?? DEFAULT_REFRESH_STATUS.schedulerState, SCHEDULER_STATES, DEFAULT_REFRESH_STATUS.schedulerState),
     isRetryingAfterWake: Boolean(overrides.isRetryingAfterWake ?? DEFAULT_REFRESH_STATUS.isRetryingAfterWake),
     retryAttempt: overrides.retryAttempt ?? DEFAULT_REFRESH_STATUS.retryAttempt

@@ -1,4 +1,4 @@
-import { app, Menu, Notification, Tray, ipcMain, nativeImage, powerMonitor } from 'electron';
+import { app, Menu, Notification, Tray, clipboard, ipcMain, nativeImage, powerMonitor } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +31,7 @@ let tray = null;
 let monitorService = null;
 let refreshScheduler = null;
 let isQuitting = false;
+let currentDashboard = null;
 
 function readRuntimeConfig() {
   const runtimeConfigFile = path.join(app.getAppPath(), 'runtime-config.json');
@@ -94,6 +95,7 @@ function updateTray(dashboard) {
     return;
   }
 
+  currentDashboard = dashboard;
   const menuBarState = buildMenuBarState(dashboard);
   const refreshAction = menuBarState.refreshAction ?? {
     label: '立即刷新',
@@ -112,12 +114,20 @@ function updateTray(dashboard) {
       enabled: false
     },
     {
+      label: menuBarState.lines.sourceLabel,
+      enabled: false
+    },
+    {
       label: menuBarState.lines.updateLabel,
       enabled: false
     },
-    ...(menuBarState.lines.freshnessNoticeLabel
+    {
+      label: menuBarState.lines.nextRefreshLabel,
+      enabled: false
+    },
+    ...(menuBarState.lines.reasonLabel
       ? [{
-          label: menuBarState.lines.freshnessNoticeLabel,
+          label: menuBarState.lines.reasonLabel,
           enabled: false
         }]
       : []),
@@ -141,7 +151,10 @@ function updateTray(dashboard) {
               ...dashboard.refreshStatus,
               phase: 'refreshing',
               lastAttemptAt: new Date().toISOString(),
-              failureReason: null
+              lastRefreshReason: 'manual',
+              failureReason: null,
+              lastErrorCode: null,
+              lastErrorMessage: null
             }
           };
           updateTray(optimisticDashboard);
@@ -156,6 +169,20 @@ function updateTray(dashboard) {
             }, 'manual refresh failed');
           }
         }
+      }
+    },
+    {
+      label: '复制诊断信息',
+      enabled: true,
+      click: () => {
+        if (!monitorService) {
+          return;
+        }
+
+        const diagnosticText = monitorService.getDiagnosticsText({
+          dashboard: currentDashboard ?? dashboard
+        });
+        clipboard.writeText(diagnosticText);
       }
     },
     {

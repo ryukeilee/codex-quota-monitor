@@ -13,6 +13,7 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - Manual refresh shows a clear busy state so it is obvious when a refresh is in progress, and the tray now also surfaces refresh success, failure, or a just-refreshed state
 - After manual refresh completes, the app re-reads the latest dashboard before repainting the UI, so the view stays aligned with the underlying data
 - The tray shows the most recent update time and warns when data is older than 10 minutes
+- The tray also surfaces a lightweight data health view and a copyable, sanitized diagnostics summary
 - The app defaults to conservative rendering and avoids always-on visual effects that can keep Electron’s GPU usage elevated
 - The history chart is treated as optional and stays disabled by default unless explicitly enabled for debugging
 - When weekly quota is temporarily unavailable, the tray keeps weekly fields as unavailable instead of substituting the 5-hour value
@@ -80,6 +81,8 @@ The fallback snapshot format is intentionally simple:
 - Shows weekly remaining quota as a plain native-style percentage
 - Shows `--` in the title and `Weekly unavailable` state semantics when live data has no weekly quota yet
 - Shows the latest update time in the tray menu and flags stale data after 10 minutes
+- Shows data status, data source, next refresh, and an optional reason line in the tray menu
+- Includes a `Copy Diagnostics` menu item with sanitized output for quick troubleshooting
 - Surfaces a compact overview first so the tray stays easy to scan
 - Keeps deeper details out of the first glance
 - Keeps manual refresh separate from settings toggles
@@ -99,6 +102,7 @@ The fallback snapshot format is intentionally simple:
 - The app reads local Codex state only
 - Flow advice is derived from local quota levels, freshness, and refresh state only
 - Refresh logs are redacted to avoid leaking tokens, cookies, or account details
+- Diagnostics output is sanitized and capped to recent refresh events
 - Low-quota reminders stay quiet by default and are shown in the tray menu first
 - Runtime data and logs are kept out of version control
 - Local artifacts under `data/`, `logs/`, `.playwright-mcp/`, and other generated files are intended to remain untracked
@@ -111,6 +115,7 @@ The fallback snapshot format is intentionally simple:
 - Forced refreshes are deduped within 10 seconds
 - Manual refresh switches the tray and in-app button into a visible busy state while the refresh is running
 - Manual refresh also provides immediate visible feedback for refreshing, success, failure, and just-refreshed states
+- A lightweight health status layer marks data as healthy, delayed, stale, fallback, or error without changing source priority
 - Sleep pauses the scheduler instead of letting background timers run
 - Mac wake and screen unlock trigger one immediate refresh, then retry at 5s, 15s, 30s, and 60s if needed
 - Wake retry sequences stop after the first successful live refresh

@@ -68,17 +68,23 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
       isHighIntensity: false,
       showPercentageInMenuBar: true
     }
+  }, {
+    now: '2026-06-06T10:12:00.000Z'
   });
 
   assert.equal(state.title, '87%');
-  assert.equal(state.toolTip, 'Codex Monitor：周 87% · 5小时 64% · 正常 · 最近成功');
+  assert.equal(state.toolTip, 'Codex Monitor：周 87% · 5小时 64% · 正常 · 数据正常 · 实时数据');
   assert.equal(state.lines.overviewLabel, '周 87% · 5小时 64%');
-  assert.equal(state.lines.statusLabel, '状态 正常 · 实时数据 · 新鲜');
+  assert.equal(state.lines.statusLabel, '数据状态：正常');
+  assert.equal(state.lines.sourceLabel, '数据源：app-server');
+  assert.equal(state.lines.updateLabel, '更新时间：18:12');
+  assert.equal(state.lines.nextRefreshLabel, '下一次刷新：18:17');
+  assert.equal(state.lines.reasonLabel, null);
   assert.equal(state.lines.burnRateLabel, '消耗 平稳 · 约 12h');
   assert.equal(state.lines.adviceLabel, '建议 适合小步推进');
 });
 
-test('buildMenuBarState shows the latest update time and stale notice when data is old', () => {
+test('buildMenuBarState shows delayed health metadata when data is older than 10 minutes', () => {
   const state = buildMenuBarState({
     refreshedAt: '2026-06-06T10:00:00.000Z',
     refreshStatus: {
@@ -117,8 +123,11 @@ test('buildMenuBarState shows the latest update time and stale notice when data 
     now: '2026-06-06T10:11:01.000Z'
   });
 
-  assert.equal(state.lines.updateLabel, '更新于 18:00');
-  assert.equal(state.lines.freshnessNoticeLabel, '数据可能已过期');
+  assert.equal(state.lines.statusLabel, '数据状态：延迟');
+  assert.equal(state.lines.sourceLabel, '数据源：app-server');
+  assert.equal(state.lines.updateLabel, '更新时间：18:00');
+  assert.equal(state.lines.nextRefreshLabel, '下一次刷新：18:05');
+  assert.equal(state.lines.reasonLabel, '原因：数据更新较慢');
 });
 
 test('buildMenuBarState keeps the tray title as a plain percentage when quota is near limit', () => {
@@ -182,11 +191,14 @@ test('buildMenuBarState keeps the tray title as a plain percentage when quota is
       showPercentageInMenuBar: true
     },
     refreshInterval: 15000
+  }, {
+    now: '2026-06-06T10:12:00.000Z'
   });
 
   assert.equal(state.title, '87%');
   assert.equal(state.lines.overviewLabel, '周 87% · 5小时 12%');
-  assert.equal(state.lines.statusLabel, '状态 正常 · 实时数据 · 新鲜');
+  assert.equal(state.lines.statusLabel, '数据状态：正常');
+  assert.equal(state.lines.sourceLabel, '数据源：app-server');
   assert.equal(state.lines.burnRateLabel, '消耗 很快 · 约 1h');
 });
 
@@ -238,6 +250,8 @@ test('buildMenuBarState hides title text when menu bar display is disabled', () 
     preferences: {
       showPercentageInMenuBar: false
     }
+  }, {
+    now: '2026-06-06T10:12:00.000Z'
   });
 
   assert.equal(state.title, '');
@@ -344,7 +358,7 @@ test('buildMenuBarState shows a busy refresh action while refreshing', () => {
     }
   });
 
-  assert.equal(state.refreshAction.label, '刷新中…');
+  assert.equal(state.refreshAction.label, '正在刷新...');
   assert.equal(state.refreshAction.enabled, false);
 });
 
@@ -388,7 +402,7 @@ test('buildMenuBarState surfaces manual refresh outcomes in the action label', (
     now: '2026-06-06T10:12:40.000Z'
   });
 
-  assert.equal(state.refreshAction.label, '刚刚已刷新');
+  assert.equal(state.refreshAction.label, '刷新成功 · 18:12');
   assert.equal(state.refreshAction.enabled, true);
 });
 
@@ -420,10 +434,64 @@ test('buildMenuBarState reports refresh failure in the action label', () => {
       showPercentageInMenuBar: true
     },
     refreshInterval: 300000
+  }, {
+    now: '2026-06-09T03:16:55.878Z'
   });
 
   assert.equal(state.refreshAction.label, '刷新失败');
-  assert.equal(state.lines.freshnessNoticeLabel, '数据可能已过期');
+  assert.equal(state.lines.statusLabel, '数据状态：不可用');
+  assert.equal(state.lines.sourceLabel, '数据源：未知来源');
+});
+
+test('buildMenuBarState reports cached fallback data explicitly', () => {
+  const state = buildMenuBarState({
+    refreshedAt: '2026-06-09T03:16:55.878Z',
+    refreshStatus: {
+      phase: 'using_snapshot',
+      dataSource: 'local_snapshot',
+      freshness: 'recent',
+      lastAttemptAt: '2026-06-09T03:16:55.878Z',
+      lastSuccessAt: '2026-06-09T03:12:55.878Z',
+      lastFailureAt: '2026-06-09T03:16:55.878Z',
+      nextScheduledRefreshAt: '2026-06-09T03:21:55.878Z',
+      failureReason: 'codex app-server request timed out',
+      isRetryingAfterWake: false,
+      retryAttempt: null
+    },
+    source: {
+      label: 'local-codex-session-state',
+      file: 'local snapshot'
+    },
+    summary: {
+      remainingPercent: 64,
+      remaining: 64,
+      used: 36,
+      limit: 100,
+      presentation: 'percent',
+      windowState: 'healthy',
+      nextRecoveryAt: '2026-06-09T03:30:00.000Z'
+    },
+    weeklySummary: {
+      remainingPercent: 84,
+      remaining: 84,
+      used: 16,
+      limit: 100,
+      nextRecoveryAt: '2026-06-09T10:30:00.000Z'
+    },
+    preferences: {
+      isActive: true,
+      isHighIntensity: false,
+      showPercentageInMenuBar: true
+    },
+    refreshInterval: 300000
+  }, {
+    now: '2026-06-09T03:16:55.878Z'
+  });
+
+  assert.equal(state.refreshAction.label, '刷新失败 · 使用缓存');
+  assert.equal(state.lines.statusLabel, '数据状态：使用缓存');
+  assert.equal(state.lines.sourceLabel, '数据源：本地快照');
+  assert.equal(state.lines.reasonLabel, '原因：实时数据源失败');
 });
 
 test('buildMenuBarState handles unavailable live quota data gracefully', () => {
@@ -457,11 +525,14 @@ test('buildMenuBarState handles unavailable live quota data gracefully', () => {
   });
 
   assert.equal(state.title, '--');
-  assert.equal(state.toolTip, 'Codex Monitor：周 暂无 · 5小时 暂无 · 暂无 · 刷新失败');
+  assert.equal(state.toolTip, 'Codex Monitor：周 暂无 · 5小时 暂无 · 暂无 · 数据不可用 · 请检查 Codex 登录状态或网络');
   assert.equal(state.lines.overviewLabel, '周 暂无 · 5小时 暂无');
-  assert.equal(state.lines.statusLabel, '状态 暂无 · 未知来源 · 未知');
+  assert.equal(state.lines.statusLabel, '数据状态：不可用');
+  assert.equal(state.lines.sourceLabel, '数据源：未知来源');
+  assert.equal(state.lines.updateLabel, '更新时间：11:16');
+  assert.equal(state.lines.nextRefreshLabel, '下一次刷新：11:21');
+  assert.equal(state.lines.reasonLabel, '原因：codex app-server request timed out');
   assert.equal(state.lines.adviceLabel, '建议 先等数据');
-  assert.equal(state.lines.updateLabel, '更新于 11:16');
 });
 
 test('formatRefreshLabel returns the low-frequency refresh label', () => {

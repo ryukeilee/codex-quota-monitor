@@ -123,7 +123,9 @@ export function formatRefreshLabel(intervalMs) {
 export function buildMenuBarState(dashboard) {
   const sourceData = dashboard.refreshStatus?.dataSource
     ?? dashboard.source?.origin
-    ?? (dashboard.source?.label === 'local-codex-session-state' ? 'local_snapshot' : (dashboard.summary ? 'codex_app_server' : 'unknown'));
+    ?? (dashboard.source?.label === 'local-codex-session-state'
+      ? 'local_snapshot'
+      : (dashboard.summary ? 'codex_app_server' : 'unknown'));
   const lastSuccessAt = dashboard.refreshStatus?.lastSuccessAt
     ?? dashboard.lastSuccessfulRefreshAt
     ?? dashboard.refreshedAt

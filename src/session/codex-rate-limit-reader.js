@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_CHATGPT_BACKEND_URL = 'https://chatgpt.com/backend-api';
 const DEFAULT_NODE_SEARCH_PATHS = [
   '/opt/homebrew/bin',
   '/usr/local/bin',
@@ -62,6 +64,73 @@ function normalizeRemainingPercentWindow(window) {
   };
 }
 
+function normalizeRateLimitWindowByUsedPercent(window) {
+  if (!window || typeof window.used_percent !== 'number') {
+    return null;
+  }
+
+  const remainingPercent = Math.max(0, Math.min(100, 100 - window.used_percent));
+  return {
+    limit: 100,
+    used: window.used_percent,
+    remaining: remainingPercent,
+    remainingPercent,
+    windowUsageCount: 0,
+    windowState: remainingPercent <= 15 ? 'near_limit' : 'healthy',
+    nextRecoveryAt: toIsoTimestamp(window.reset_at),
+    presentation: 'percent',
+    windowDurationMins: window.limit_window_seconds != null
+      ? Math.round(window.limit_window_seconds / 60)
+      : null
+  };
+}
+
+function normalizeWhamSpendControlLimit(window) {
+  if (!window) {
+    return null;
+  }
+
+  if (typeof window.remaining_percent === 'number' || typeof window.remainingPercent === 'number') {
+    return normalizeRemainingPercentWindow({
+      remainingPercent: window.remaining_percent ?? window.remainingPercent,
+      resetsAt: window.reset_at ?? window.resetsAt
+    });
+  }
+
+  if (typeof window.used_percent === 'number' || typeof window.usedPercent === 'number') {
+    const usedPercent = window.used_percent ?? window.usedPercent;
+    return normalizeRemainingPercentWindow({
+      remainingPercent: Math.max(0, Math.min(100, 100 - usedPercent)),
+      resetsAt: window.reset_at ?? window.resetsAt
+    });
+  }
+
+  return null;
+}
+
+function normalizeWhamUsageResponse(response) {
+  const rateLimit = response?.rate_limit ?? response?.result?.rate_limit;
+  if (!rateLimit?.primary_window || !rateLimit?.secondary_window) {
+    return null;
+  }
+
+  return {
+    sourceLabel: 'codex-account-rate-limits',
+    sourceOrigin: 'wham_usage',
+    primary: normalizeRateLimitWindowByUsedPercent(rateLimit.primary_window),
+    secondary: normalizeRateLimitWindowByUsedPercent(rateLimit.secondary_window),
+    credits: response?.credits ?? response?.result?.credits ?? null,
+    planType: response?.plan_type ?? response?.result?.plan_type ?? null,
+    rateLimitReachedType: response?.rate_limit_reached_type ?? response?.result?.rate_limit_reached_type ?? null,
+    individualLimit: normalizeWhamSpendControlLimit(
+      rateLimit.individual_limit
+      ?? response?.spend_control?.individual_limit
+      ?? response?.result?.spend_control?.individual_limit
+      ?? null
+    )
+  };
+}
+
 export function normalizeRateLimitsResponse(response) {
   const rateLimits = response?.rateLimits ?? response?.result?.rateLimits;
   if (!rateLimits?.primary || !rateLimits?.secondary) {
@@ -70,11 +139,13 @@ export function normalizeRateLimitsResponse(response) {
 
   return {
     sourceLabel: 'codex-account-rate-limits',
-    primary: normalizeRemainingPercentWindow(rateLimits.individualLimit) ?? normalizeUsedPercentWindow(rateLimits.primary),
+    sourceOrigin: 'codex_app_server',
+    primary: normalizeUsedPercentWindow(rateLimits.primary),
     secondary: normalizeUsedPercentWindow(rateLimits.secondary),
     credits: rateLimits.credits ?? null,
     planType: rateLimits.planType ?? null,
-    rateLimitReachedType: rateLimits.rateLimitReachedType ?? null
+    rateLimitReachedType: rateLimits.rateLimitReachedType ?? null,
+    individualLimit: normalizeRemainingPercentWindow(rateLimits.individualLimit)
   };
 }
 
@@ -293,6 +364,83 @@ export function resolveNodeExecutablePath({
   );
 }
 
+function readAuthJson(authFilePath = path.join(os.homedir(), '.codex', 'auth.json')) {
+  if (!fs.existsSync(authFilePath)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(authFilePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function getAuthHeaders(auth) {
+  const headers = {
+    accept: 'application/json',
+    'user-agent': 'codex-cli'
+  };
+
+  const accessToken = auth?.tokens?.access_token ?? auth?.OPENAI_API_KEY ?? null;
+  if (accessToken) {
+    headers.authorization = `Bearer ${accessToken}`;
+  }
+
+  const accountId = auth?.tokens?.account_id ?? auth?.account_id ?? null;
+  if (accountId) {
+    headers['ChatGPT-Account-Id'] = accountId;
+  }
+
+  return headers;
+}
+
+async function fetchWhamUsageRateLimits({
+  authFilePath = path.join(os.homedir(), '.codex', 'auth.json'),
+  baseUrl = DEFAULT_CHATGPT_BACKEND_URL,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  fetchImpl = fetch
+} = {}) {
+  const auth = readAuthJson(authFilePath);
+  const headers = getAuthHeaders(auth);
+  if (!headers.authorization) {
+    throw new Error('missing ChatGPT access token for wham usage request');
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error('wham usage request timed out')), timeoutMs);
+
+  try {
+    const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/wham/usage`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal
+    });
+
+    const contentType = response.headers.get('content-type') ?? '';
+    const bodyText = await response.text();
+    if (!response.ok) {
+      throw new Error(`GET ${baseUrl}/wham/usage failed: ${response.status}; content-type=${contentType}; body=${bodyText}`);
+    }
+
+    let payload;
+    try {
+      payload = JSON.parse(bodyText);
+    } catch (error) {
+      throw new Error(`Decode error for ${baseUrl}/wham/usage: ${error?.message ?? String(error)}; content-type=${contentType}; body=${bodyText}`);
+    }
+
+    const normalized = normalizeWhamUsageResponse(payload);
+    if (!normalized) {
+      throw new Error('wham/usage returned no usable rate limits');
+    }
+
+    return normalized;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function isExecutableFile(filePath) {
   try {
     fs.accessSync(filePath, fs.constants.X_OK);
@@ -302,7 +450,27 @@ function isExecutableFile(filePath) {
   }
 }
 
-export async function readLiveRateLimits({ cwd = process.cwd(), timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+export async function readLiveRateLimits({
+  cwd = process.cwd(),
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  authFilePath = path.join(os.homedir(), '.codex', 'auth.json'),
+  baseUrl = DEFAULT_CHATGPT_BACKEND_URL,
+  fetchImpl = fetch
+} = {}) {
+  const auth = readAuthJson(authFilePath);
+  if (auth?.auth_mode === 'chatgpt') {
+    try {
+      return await fetchWhamUsageRateLimits({
+        authFilePath,
+        baseUrl,
+        timeoutMs,
+        fetchImpl
+      });
+    } catch {
+      // Fall back to the local app-server only if the web source is unavailable.
+    }
+  }
+
   const client = createJsonRpcClient({ cwd, timeoutMs });
 
   try {

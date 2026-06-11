@@ -21,6 +21,7 @@ const SCHEDULER_STATES = new Set([
 
 const DATA_SOURCES = new Set([
   'codex_app_server',
+  'wham_usage',
   'local_snapshot',
   'memory_cache',
   'unknown'
@@ -139,6 +140,8 @@ export function formatDataSource(dataSource) {
   switch (dataSource) {
     case 'codex_app_server':
       return '实时数据';
+    case 'wham_usage':
+      return '网页实时数据';
     case 'local_snapshot':
       return '本地快照';
     case 'memory_cache':

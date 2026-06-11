@@ -28,12 +28,13 @@ npm run build:app
 
 ## 数据源
 
-应用优先读取本机 Codex app-server 的实时额度数据，必要时回退到本地快照。
+应用优先读取已登录 ChatGPT 账号的 `wham/usage` 实时额度数据，其次回退到本机 Codex app-server，最后才回退到本地快照。
 
 数据源优先级：
 
-1. 本机 Codex app-server 的 `account/rateLimits/read` 实时数据
-2. `data/source-snapshot.json` 的本地快照回退
+1. 已登录 ChatGPT 账号的 `https://chatgpt.com/backend-api/wham/usage` 实时数据
+2. 本机 Codex app-server 的 `account/rateLimits/read` 实时数据
+3. `data/source-snapshot.json` 的本地快照回退
 
 实时数据会提供：
 

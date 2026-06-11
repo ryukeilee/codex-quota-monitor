@@ -28,12 +28,13 @@ After building, open `dist/Codex Monitor.app` from Finder to launch the packaged
 
 ## Data Sources
 
-The app prefers live local quota data from the Codex app-server and falls back to local snapshots when needed.
+The app prefers the authenticated ChatGPT `wham/usage` quota endpoint, then falls back to the local Codex app-server, and finally local snapshots when needed.
 
 Source priority:
 
-1. Live `account/rateLimits/read` data from the local Codex app-server
-2. Local snapshot fallback in `data/source-snapshot.json`
+1. Live `https://chatgpt.com/backend-api/wham/usage` data from the authenticated ChatGPT account
+2. Live `account/rateLimits/read` data from the local Codex app-server
+3. Local snapshot fallback in `data/source-snapshot.json`
 
 The live source provides:
 

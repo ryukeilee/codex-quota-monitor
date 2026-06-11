@@ -182,7 +182,7 @@ export async function createMonitorService({
 
   function inferDataSource(currentDashboard) {
     const sourceOrigin = currentDashboard?.source?.origin;
-    if (sourceOrigin === 'codex_app_server' || sourceOrigin === 'local_snapshot' || sourceOrigin === 'memory_cache' || sourceOrigin === 'unknown') {
+    if (sourceOrigin === 'codex_app_server' || sourceOrigin === 'wham_usage' || sourceOrigin === 'local_snapshot' || sourceOrigin === 'memory_cache' || sourceOrigin === 'unknown') {
       return sourceOrigin;
     }
 
@@ -392,17 +392,19 @@ export async function createMonitorService({
         dashboard = buildDashboard(
           liveSnapshot,
           preferences,
-          'codex app-server account/rateLimits/read',
+          liveRateLimits.sourceOrigin === 'wham_usage'
+            ? 'chatgpt.com/backend-api/wham/usage'
+            : 'codex app-server account/rateLimits/read',
           liveRateLimits.primary,
           [],
           {
             weeklySummary: liveRateLimits.secondary,
             sourceLabel: liveRateLimits.sourceLabel,
             refreshInterval: liveRefreshInterval,
-            sourceOrigin: 'codex_app_server'
+            sourceOrigin: liveRateLimits.sourceOrigin ?? 'codex_app_server'
           }
         );
-        refreshSource = 'codex_app_server';
+        refreshSource = liveRateLimits.sourceOrigin ?? 'codex_app_server';
         refreshAt = dashboard.refreshedAt;
         refreshStatus = createRefreshStatus({
           ...refreshStatus,

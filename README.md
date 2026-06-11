@@ -32,6 +32,8 @@ After building, open `dist/Codex Monitor.app` from Finder to launch the packaged
 
 The packaging script stages the app bundle under `dist/` for local distribution and validation.
 
+The packaged app lives at `dist/Codex Monitor.app`.
+
 `run.command` remains a development helper. For everyday use, the packaged `.app` is the recommended entry point.
 
 ## Data Sources

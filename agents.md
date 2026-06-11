@@ -82,6 +82,7 @@ Codex Monitor 是一个本地运行、隐私优先的 macOS 菜单栏工具。
 - 保持现有 npm scripts
 - 修改后运行 `npm test`
 - 打包或分发前，优先复查 `npm run build:app` 产物是否能正常生成
+- 打包后的应用位于 `dist/Codex Monitor.app`
 - 行为变化时同步更新测试
 - `data/`、`logs/`、`.playwright-mcp/` 等本地生成内容保持未跟踪状态
 - 任何 `git push` 之前必须先征得用户明确确认，不得自行 push

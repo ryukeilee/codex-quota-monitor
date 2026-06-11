@@ -1,1 +1,0 @@
-dist/Codex Monitor.app

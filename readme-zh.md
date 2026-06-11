@@ -33,6 +33,8 @@ npm run build:app
 
 打包脚本会把 app bundle 组织到 `dist/` 下，方便本地验证和分发。
 
+打包后的应用位置是 `dist/Codex Monitor.app`。
+
 `run.command` 仍保留为开发辅助入口；日常使用建议直接打开打包后的 `.app`。
 
 ## 数据源

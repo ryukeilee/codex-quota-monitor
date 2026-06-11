@@ -178,44 +178,45 @@ test('resolveNodeExecutablePath prefers an explicit executable path and keeps it
 function createFakeCodexAppServer(tempDir, payload) {
   const handlerPath = path.join(tempDir, 'app-server-handler.mjs');
   const executablePath = path.join(tempDir, 'codex');
-  const handlerSource = `
-const payload = ${JSON.stringify(payload)};
-let buffer = '';
-
-function emit(message) {
-  process.stdout.write(JSON.stringify(message) + '\\n');
-}
-
-function handleLine(line) {
-  if (!line) {
-    return;
-  }
-
-  const message = JSON.parse(line);
-
-  if (message.method === 'initialize') {
-    emit({ id: message.id, result: { capabilities: {} } });
-    return;
-  }
-
-  if (message.method === 'account/rateLimits/read') {
-    emit({ id: message.id, result: payload });
-  }
-}
-
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk) => {
-  buffer += chunk;
-  let newlineIndex = buffer.indexOf('\\n');
-
-  while (newlineIndex >= 0) {
-    const line = buffer.slice(0, newlineIndex).trim();
-    buffer = buffer.slice(newlineIndex + 1);
-    handleLine(line);
-    newlineIndex = buffer.indexOf('\\n');
-  }
-});
-`;
+  const handlerSource = [
+    `const payload = ${JSON.stringify(payload)};`,
+    "let buffer = '';",
+    '',
+    'function emit(message) {',
+    '  process.stdout.write(JSON.stringify(message) + "\\n");',
+    '}',
+    '',
+    'function handleLine(line) {',
+    '  if (!line) {',
+    '    return;',
+    '  }',
+    '',
+    '  const message = JSON.parse(line);',
+    '',
+    "  if (message.method === 'initialize') {",
+    "    emit({ id: message.id, result: { capabilities: {} } });",
+    '    return;',
+    '  }',
+    '',
+    "  if (message.method === 'account/rateLimits/read') {",
+    '    emit({ id: message.id, result: payload });',
+    '  }',
+    '}',
+    '',
+    "process.stdin.setEncoding('utf8');",
+    "process.stdin.on('data', (chunk) => {",
+    '  buffer += chunk;',
+    '  let newlineIndex = buffer.indexOf("\\n");',
+    '',
+    '  while (newlineIndex >= 0) {',
+    '    const line = buffer.slice(0, newlineIndex).trim();',
+    '    buffer = buffer.slice(newlineIndex + 1);',
+    '    handleLine(line);',
+    '    newlineIndex = buffer.indexOf("\\n");',
+    '  }',
+    '});',
+    ''
+  ].join('\n');
 
   fs.writeFileSync(handlerPath, handlerSource);
   fs.writeFileSync(executablePath, `#!/bin/sh
@@ -225,29 +226,38 @@ exec ${JSON.stringify(process.execPath)} ${JSON.stringify(handlerPath)} "$@"
   return executablePath;
 }
 
-test('readLiveRateLimits prefers wham usage in auto mode for ChatGPT auth', async () => {
+test('readLiveRateLimits prefers app-server in auto mode for ChatGPT auth', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-auth-'));
   const authFilePath = path.join(tempDir, 'auth.json');
   const payload = {
-    rate_limit: {
-      primary_window: {
-        used_percent: 15,
-        limit_window_seconds: 18_000,
-        reset_at: 1791234567
+    rateLimitsByLimitId: {
+      codex: {
+        primary: {
+          usedPercent: 16,
+          windowDurationMins: 300,
+          resetsAt: 1791234567
+        },
+        secondary: {
+          usedPercent: 12,
+          windowDurationMins: 10080,
+          resetsAt: 1791235567
+        },
+        individualLimit: {
+          remainingPercent: 88,
+          resetsAt: 1791235567
+        },
+        credits: null,
+        planType: 'pro',
+        rateLimitReachedType: null
       },
-      secondary_window: {
-        used_percent: 69,
-        limit_window_seconds: 604_800,
-        reset_at: 1791235567
+      codex_other: {
+        primary: {
+          usedPercent: 12,
+          windowDurationMins: 10080,
+          resetsAt: 1791235567
+        }
       }
-    },
-    spend_control: {
-      individual_limit: {
-        remaining_percent: 88,
-        reset_at: 1791235567
-      }
-    },
-    plan_type: 'plus'
+    }
   };
   fs.writeFileSync(authFilePath, JSON.stringify({
     auth_mode: 'chatgpt',
@@ -257,17 +267,16 @@ test('readLiveRateLimits prefers wham usage in auto mode for ChatGPT auth', asyn
     }
   }));
 
+  const previousCodexBin = process.env.CODEX_BIN;
   try {
     const calls = [];
+    const executablePath = createFakeCodexAppServer(tempDir, payload);
+    process.env.CODEX_BIN = executablePath;
     const result = await readLiveRateLimits({
       authFilePath,
       timeoutMs: 1000,
-      fetchImpl: async (url, options) => {
-        calls.push({
-          url,
-          headers: options.headers
-        });
-
+      fetchImpl: async () => {
+        calls.push('wham_usage');
         return {
           ok: true,
           status: 200,
@@ -283,15 +292,13 @@ test('readLiveRateLimits prefers wham usage in auto mode for ChatGPT auth', asyn
       }
     });
 
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, 'https://chatgpt.com/backend-api/wham/usage');
-    assert.equal(calls[0].headers.authorization, 'Bearer test-access-token');
-    assert.equal(calls[0].headers['ChatGPT-Account-Id'], 'acct-test-123');
-    assert.equal(result.sourceOrigin, 'wham_usage');
-    assert.equal(result.primary.remainingPercent, 85);
-    assert.equal(result.secondary.remainingPercent, 31);
+    assert.equal(calls.length, 0);
+    assert.equal(result.sourceOrigin, 'codex_app_server');
+    assert.equal(result.primary.remainingPercent, 84);
+    assert.equal(result.secondary.remainingPercent, 88);
     assert.equal(result.individualLimit.remainingPercent, 88);
   } finally {
+    process.env.CODEX_BIN = previousCodexBin;
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
@@ -353,18 +360,14 @@ test('readLiveRateLimits falls back to app-server after a wham transport failure
       authFilePath,
       timeoutMs: 1000,
       fetchImpl: async () => {
-        const error = new Error('error sending request for url (https://chatgpt.com/backend-api/wham/usage)');
-        error.code = 'ECONNRESET';
-        throw error;
+        throw new Error('wham usage should not be reached when app-server succeeds first');
       },
       onSourceAttemptFailure: (failure) => {
         attempts.push(failure);
       }
     });
 
-    assert.equal(attempts.length, 1);
-    assert.equal(attempts[0].sourceOrigin, 'wham_usage');
-    assert.equal(attempts[0].kind, 'transport');
+    assert.equal(attempts.length, 0);
     assert.equal(result.sourceOrigin, 'codex_app_server');
     assert.equal(result.primary.remainingPercent, 82);
     assert.equal(result.secondary.remainingPercent, 56);

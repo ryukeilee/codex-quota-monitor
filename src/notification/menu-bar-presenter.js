@@ -20,6 +20,33 @@ function formatClockTime(value) {
   });
 }
 
+function formatUpdateLabel(value) {
+  if (!value) {
+    return '更新于 暂无';
+  }
+
+  return `更新于 ${new Date(value).toLocaleTimeString('zh-CN', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit'
+  })}`;
+}
+
+function isDataExpired(lastSuccessAt, now = new Date()) {
+  if (!lastSuccessAt) {
+    return false;
+  }
+
+  const lastSuccessTime = new Date(lastSuccessAt).getTime();
+  const nowTime = new Date(now).getTime();
+
+  if (!Number.isFinite(lastSuccessTime) || !Number.isFinite(nowTime)) {
+    return false;
+  }
+
+  return nowTime - lastSuccessTime > 10 * 60 * 1000;
+}
+
 function formatPredictionState(prediction) {
   if (!prediction) {
     return '先等数据';
@@ -112,9 +139,28 @@ function formatBurnRateLabel(quotaBurnRate) {
   return `消耗 ${paceLabel} · 约 ${hoursLabel}`;
 }
 
-function formatRefreshActionLabel(refreshStatus) {
+function formatRefreshActionLabel(refreshStatus, now = new Date()) {
   if (refreshStatus?.phase === 'refreshing') {
     return '刷新中…';
+  }
+
+  if (refreshStatus?.phase === 'failed') {
+    return '刷新失败';
+  }
+
+  if (refreshStatus?.phase === 'success' && refreshStatus?.lastAttemptAt) {
+    const lastAttemptAt = new Date(refreshStatus.lastAttemptAt).getTime();
+    const nowTime = new Date(now).getTime();
+
+    if (Number.isFinite(lastAttemptAt) && Number.isFinite(nowTime) && nowTime - lastAttemptAt <= 60 * 1000) {
+      return '刚刚已刷新';
+    }
+
+    return '刷新成功';
+  }
+
+  if (refreshStatus?.phase === 'sleep_recovering') {
+    return '唤醒恢复中';
   }
 
   return '立即刷新';
@@ -144,7 +190,7 @@ export function formatRefreshLabel(intervalMs) {
   return `下次刷新约 ${Math.round(intervalMs / (60 * 1000))} 分钟后`;
 }
 
-export function buildMenuBarState(dashboard) {
+export function buildMenuBarState(dashboard, { now = new Date() } = {}) {
   const sourceData = dashboard.refreshStatus?.dataSource
     ?? dashboard.source?.origin
     ?? (dashboard.source?.label === 'local-codex-session-state'
@@ -163,12 +209,13 @@ export function buildMenuBarState(dashboard) {
     phase,
     dataSource: sourceData,
     lastSuccessAt,
-    freshness: dashboard.refreshStatus?.freshness
+      freshness: dashboard.refreshStatus?.freshness
       ?? computeFreshness({
         lastSuccessAt,
-        refreshInterval: dashboard.refreshInterval
+        refreshInterval: dashboard.refreshInterval,
+        now
       })
-  });
+    });
   const refreshLabels = formatRefreshStatus(refreshStatus);
   const quotaAlertStatus = buildQuotaAlertStatus({
     weeklyRemainingPercent: dashboard.weeklySummary?.remainingPercent ?? dashboard.summary?.remainingPercent,
@@ -181,8 +228,12 @@ export function buildMenuBarState(dashboard) {
   const statusLabel = formatStatusLabel(refreshStatus, quotaAlertStatus);
   const burnRateLabel = formatBurnRateLabel(dashboard.quotaBurnRate);
   const adviceLabel = formatAdviceLabel(dashboard.flowAdvice, dashboard.prediction);
-  const refreshActionLabel = formatRefreshActionLabel(refreshStatus);
-  const refreshActionEnabled = refreshStatus.phase !== 'refreshing';
+  const refreshActionLabel = formatRefreshActionLabel(refreshStatus, now);
+  const refreshActionEnabled = refreshStatus.phase !== 'refreshing' && refreshStatus.phase !== 'sleep_recovering';
+  const updateLabel = formatUpdateLabel(lastSuccessAt ?? dashboard.refreshedAt ?? null);
+  const freshnessNoticeLabel = isDataExpired(lastSuccessAt ?? dashboard.refreshedAt ?? null, now)
+    ? '数据可能已过期'
+    : null;
 
   return {
     title: formatTrayTitle(dashboard.summary, dashboard.weeklySummary, dashboard.preferences),
@@ -194,6 +245,8 @@ export function buildMenuBarState(dashboard) {
     lines: {
       overviewLabel,
       statusLabel,
+      updateLabel,
+      freshnessNoticeLabel,
       burnRateLabel,
       adviceLabel,
       refreshLabel: formatRefreshLabel(dashboard.refreshInterval)

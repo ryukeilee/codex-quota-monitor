@@ -112,6 +112,16 @@ function updateTray(dashboard) {
       enabled: false
     },
     {
+      label: menuBarState.lines.updateLabel,
+      enabled: false
+    },
+    ...(menuBarState.lines.freshnessNoticeLabel
+      ? [{
+          label: menuBarState.lines.freshnessNoticeLabel,
+          enabled: false
+        }]
+      : []),
+    {
       label: menuBarState.lines.burnRateLabel,
       enabled: false
     },
@@ -125,6 +135,16 @@ function updateTray(dashboard) {
       enabled: refreshAction.enabled,
       click: async () => {
         if (monitorService && refreshAction.enabled) {
+          const optimisticDashboard = {
+            ...dashboard,
+            refreshStatus: {
+              ...dashboard.refreshStatus,
+              phase: 'refreshing',
+              lastAttemptAt: new Date().toISOString(),
+              failureReason: null
+            }
+          };
+          updateTray(optimisticDashboard);
           try {
             await refreshScheduler.requestRefresh({
               reason: 'manual',

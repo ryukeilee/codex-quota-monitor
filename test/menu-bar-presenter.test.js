@@ -78,6 +78,49 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   assert.equal(state.lines.adviceLabel, '建议 适合小步推进');
 });
 
+test('buildMenuBarState shows the latest update time and stale notice when data is old', () => {
+  const state = buildMenuBarState({
+    refreshedAt: '2026-06-06T10:00:00.000Z',
+    refreshStatus: {
+      phase: 'success',
+      dataSource: 'codex_app_server',
+      freshness: 'stale',
+      lastAttemptAt: '2026-06-06T10:00:00.000Z',
+      lastSuccessAt: '2026-06-06T10:00:00.000Z',
+      lastFailureAt: null,
+      nextScheduledRefreshAt: '2026-06-06T10:05:00.000Z',
+      failureReason: null,
+      isRetryingAfterWake: false,
+      retryAttempt: null
+    },
+    summary: {
+      remainingPercent: 64,
+      remaining: 64,
+      used: 36,
+      limit: 100,
+      presentation: 'percent',
+      windowState: 'healthy',
+      nextRecoveryAt: '2026-06-06T10:30:00.000Z'
+    },
+    weeklySummary: {
+      remainingPercent: 87,
+      remaining: 87,
+      used: 13,
+      limit: 100,
+      nextRecoveryAt: '2026-06-11T10:30:00.000Z'
+    },
+    preferences: {
+      showPercentageInMenuBar: true
+    },
+    refreshInterval: 5 * 60 * 1000
+  }, {
+    now: '2026-06-06T10:11:01.000Z'
+  });
+
+  assert.equal(state.lines.updateLabel, '更新于 18:00');
+  assert.equal(state.lines.freshnessNoticeLabel, '数据可能已过期');
+});
+
 test('buildMenuBarState keeps the tray title as a plain percentage when quota is near limit', () => {
   const state = buildMenuBarState({
     refreshedAt: '2026-06-06T10:12:00.000Z',
@@ -305,6 +348,84 @@ test('buildMenuBarState shows a busy refresh action while refreshing', () => {
   assert.equal(state.refreshAction.enabled, false);
 });
 
+test('buildMenuBarState surfaces manual refresh outcomes in the action label', () => {
+  const state = buildMenuBarState({
+    refreshedAt: '2026-06-06T10:12:00.000Z',
+    refreshStatus: {
+      phase: 'success',
+      dataSource: 'codex_app_server',
+      freshness: 'fresh',
+      lastAttemptAt: '2026-06-06T10:12:10.000Z',
+      lastSuccessAt: '2026-06-06T10:12:10.000Z',
+      lastFailureAt: null,
+      nextScheduledRefreshAt: '2026-06-06T10:17:00.000Z',
+      failureReason: null,
+      isRetryingAfterWake: false,
+      retryAttempt: null
+    },
+    summary: {
+      remainingPercent: 64,
+      remaining: 64,
+      used: 36,
+      limit: 100,
+      presentation: 'percent',
+      windowState: 'healthy',
+      nextRecoveryAt: '2026-06-06T10:30:00.000Z'
+    },
+    weeklySummary: {
+      remainingPercent: 87,
+      remaining: 87,
+      used: 13,
+      limit: 100,
+      nextRecoveryAt: '2026-06-11T10:30:00.000Z'
+    },
+    preferences: {
+      isActive: true,
+      isHighIntensity: false,
+      showPercentageInMenuBar: true
+    }
+  }, {
+    now: '2026-06-06T10:12:40.000Z'
+  });
+
+  assert.equal(state.refreshAction.label, '刚刚已刷新');
+  assert.equal(state.refreshAction.enabled, true);
+});
+
+test('buildMenuBarState reports refresh failure in the action label', () => {
+  const state = buildMenuBarState({
+    refreshedAt: '2026-06-09T03:16:55.878Z',
+    refreshStatus: {
+      phase: 'failed',
+      dataSource: 'unknown',
+      freshness: 'unknown',
+      lastAttemptAt: '2026-06-09T03:16:55.878Z',
+      lastSuccessAt: null,
+      lastFailureAt: '2026-06-09T03:16:55.878Z',
+      nextScheduledRefreshAt: '2026-06-09T03:21:55.878Z',
+      failureReason: 'codex app-server request timed out',
+      isRetryingAfterWake: false,
+      retryAttempt: null
+    },
+    source: {
+      label: 'codex-account-rate-limits',
+      file: 'codex app-server account/rateLimits/read'
+    },
+    summary: null,
+    weeklySummary: null,
+    prediction: null,
+    preferences: {
+      isActive: true,
+      isHighIntensity: false,
+      showPercentageInMenuBar: true
+    },
+    refreshInterval: 300000
+  });
+
+  assert.equal(state.refreshAction.label, '刷新失败');
+  assert.equal(state.lines.freshnessNoticeLabel, '数据可能已过期');
+});
+
 test('buildMenuBarState handles unavailable live quota data gracefully', () => {
   const state = buildMenuBarState({
     refreshedAt: '2026-06-09T03:16:55.878Z',
@@ -340,6 +461,7 @@ test('buildMenuBarState handles unavailable live quota data gracefully', () => {
   assert.equal(state.lines.overviewLabel, '周 暂无 · 5小时 暂无');
   assert.equal(state.lines.statusLabel, '状态 暂无 · 未知来源 · 未知');
   assert.equal(state.lines.adviceLabel, '建议 先等数据');
+  assert.equal(state.lines.updateLabel, '更新于 11:16');
 });
 
 test('formatRefreshLabel returns the low-frequency refresh label', () => {

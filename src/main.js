@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Notification, Tray, ipcMain, nativeImage, powerMonitor } from 'electron';
+import { app, Menu, Notification, Tray, ipcMain, nativeImage, powerMonitor } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,8 +20,13 @@ const fallbackLogger = {
   debug: (...args) => console.debug(...args)
 };
 
+const shouldDisableHardwareAcceleration = process.env.CODEX_MONITOR_DISABLE_GPU !== '0';
+
+if (shouldDisableHardwareAcceleration) {
+  app.disableHardwareAcceleration();
+}
+
 let logger = fallbackLogger;
-let mainWindow = null;
 let tray = null;
 let monitorService = null;
 let refreshScheduler = null;
@@ -54,102 +59,12 @@ function createTrayIcon() {
   return image;
 }
 
-function attachWebContentsDiagnostics(window, name) {
-  if (!window) {
-    return;
-  }
-
-  window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    logger.info({
-      name,
-      level,
-      message,
-      line,
-      sourceId
-    }, 'renderer console message');
-  });
-
-  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
-    logger.error({
-      name,
-      errorCode,
-      errorDescription,
-      validatedURL
-    }, 'renderer failed to load');
-  });
-
-  window.webContents.on('render-process-gone', (_event, details) => {
-    logger.error({
-      name,
-      ...details
-    }, 'renderer process gone');
-  });
-}
-
-async function createMainWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1320,
-    height: 940,
-    minWidth: 1080,
-    minHeight: 760,
-    backgroundColor: '#f5f0e8',
-    show: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs')
-    }
-  });
-
-  attachWebContentsDiagnostics(mainWindow, 'main');
-  await mainWindow.loadFile(path.join(__dirname, 'ui', 'index.html'));
-}
-
-function showMainWindow() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  mainWindow.show();
-  mainWindow.focus();
-}
-
-function toggleMainWindow() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  if (mainWindow.isVisible()) {
-    mainWindow.hide();
-    return;
-  }
-
-  showMainWindow();
-}
-
-function applyCloseToMenuBarBehavior(dashboard) {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  mainWindow.removeAllListeners('close');
-  mainWindow.on('close', (event) => {
-    if (isQuitting || !dashboard.preferences.closeToMenuBar) {
-      return;
-    }
-
-    event.preventDefault();
-    mainWindow.hide();
-  });
-}
-
 async function applyPresentationMode(preferences) {
   if (process.platform !== 'darwin') {
     return;
   }
 
   app.setActivationPolicy('accessory');
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.setSkipTaskbar(true);
-  }
   app.dock?.hide();
 }
 
@@ -254,76 +169,10 @@ function updateTray(dashboard) {
       type: 'separator'
     },
     {
-      label: '打开主窗口',
-      click: () => showMainWindow()
-    },
-    {
-      type: 'checkbox',
-      label: '菜单栏显示周百分比',
-      checked: dashboard.preferences.showPercentageInMenuBar,
-      click: async () => {
-        if (monitorService) {
-          await updatePreferencesWithScheduler({
-            showPercentageInMenuBar: !dashboard.preferences.showPercentageInMenuBar
-          });
-        }
-      }
-    },
-    {
-      type: 'checkbox',
-      label: '关闭窗口时驻留菜单栏',
-      checked: dashboard.preferences.closeToMenuBar,
-      click: async () => {
-        if (monitorService) {
-          await updatePreferencesWithScheduler({
-            closeToMenuBar: !dashboard.preferences.closeToMenuBar
-          });
-        }
-      }
-    },
-    {
-      type: 'checkbox',
-      label: '纯菜单栏模式',
-      checked: dashboard.preferences.pureMenuBarMode,
-      click: async () => {
-        if (monitorService) {
-          await updatePreferencesWithScheduler({
-            pureMenuBarMode: !dashboard.preferences.pureMenuBarMode
-          });
-        }
-      }
-    },
-    { type: 'separator' },
-    {
       label: '退出应用',
       click: () => app.quit()
     }
   ]));
-}
-
-function pushDashboardToWindows(dashboard) {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('dashboard:updated', dashboard);
-  }
-}
-
-function syncDashboardWhenReady(window, dashboard) {
-  if (!window || window.isDestroyed()) {
-    return;
-  }
-
-  const sendDashboard = () => {
-    if (!window.isDestroyed()) {
-      window.webContents.send('dashboard:updated', dashboard);
-    }
-  };
-
-  if (window.webContents.isLoadingMainFrame()) {
-    window.webContents.once('did-finish-load', sendDashboard);
-    return;
-  }
-
-  sendDashboard();
 }
 
 function showNotification(payload) {
@@ -345,15 +194,12 @@ async function bootstrap() {
     runtimeConfig,
     fallbackRoot: process.cwd()
   });
-  const shouldShowMainWindow = process.env.CODEX_MONITOR_SHOW_MAIN_WINDOW === '1';
   logger = createLogger(storageRoot);
 
   monitorService = await createMonitorService({
     onUpdated: (dashboard) => {
       updateTray(dashboard);
-      applyCloseToMenuBarBehavior(dashboard);
       applyPresentationMode(dashboard.preferences);
-      pushDashboardToWindows(dashboard);
     },
     onNotify: showNotification,
     logger,
@@ -372,7 +218,6 @@ async function bootstrap() {
     logger
   });
 
-  ipcMain.handle('dashboard:load', async () => monitorService.getDashboard());
   ipcMain.handle('dashboard:refresh', async (_event, options = {}) => (
     refreshScheduler.requestRefresh(options)
   ));
@@ -396,13 +241,7 @@ async function bootstrap() {
   tray.setToolTip('Codex Monitor');
   const dashboard = await monitorService.init();
   refreshScheduler.start(dashboard);
-  await createMainWindow();
   updateTray(dashboard);
-  syncDashboardWhenReady(mainWindow, dashboard);
-  if (shouldShowMainWindow) {
-    showMainWindow();
-  }
-  applyCloseToMenuBarBehavior(dashboard);
   await applyPresentationMode(dashboard.preferences);
 }
 
@@ -412,12 +251,6 @@ app.whenReady().then(async () => {
     app.dock?.hide();
   }
   await bootstrap();
-
-app.on('activate', async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      await createMainWindow();
-    }
-  });
 });
 
 app.on('window-all-closed', () => {

@@ -12,12 +12,13 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - Automatic refresh with a unified low-frequency scheduler
 - Manual refresh shows a clear busy state so it is obvious when a refresh is in progress
 - After manual refresh completes, the app re-reads the latest dashboard before repainting the UI, so the view stays aligned with the underlying data
+- The app defaults to conservative rendering and avoids always-on visual effects that can keep Electron’s GPU usage elevated
+- The history chart is treated as optional and stays disabled by default unless explicitly enabled for debugging
 - When weekly quota is temporarily unavailable, the tray keeps weekly fields as unavailable instead of substituting the 5-hour value
 - Tray menu stays compact and only surfaces the most important status at a glance
-- HUD-style dashboard with a single-screen control layout, status radar, and reactor-like quota readout
+- Pure menu bar operation with no always-open main window
 - Quota burn rate analysis that answers whether the current pace is too fast, how long it can last, and whether intensity should be lowered
-- Dashboard view for reset timing, trends, and local flow advice hints
-- Auto-launch and pure menu bar mode support
+- Auto-launch support
 
 ## Quick Start
 
@@ -28,6 +29,8 @@ npm run build:app
 ```
 
 After building, open `dist/Codex Monitor.app` from Finder to launch the packaged app directly.
+
+The packaging script stages the app bundle under `dist/` for local distribution and validation.
 
 `run.command` remains a development helper. For everyday use, the packaged `.app` is the recommended entry point.
 
@@ -76,14 +79,14 @@ The fallback snapshot format is intentionally simple:
 - Surfaces a compact overview first so the tray stays easy to scan
 - Keeps deeper details out of the first glance
 - Keeps manual refresh separate from settings toggles
-- Opens the dashboard and preferences from the lower section
+- Keeps the app menu-bar only, with settings and refresh actions living in the tray menu
+- Does not expose menu toggles for menu-bar percentage display or pure menu-bar mode
 
-## Dashboard
+## Runtime Signals
 
-- The main window uses a single-screen HUD layout rather than a tall scrolling page
-- The core readout centers on remaining quota, weekly quota, 5-hour window, burn rate, recovery timing, and development guidance
-- The history chart and recent records are secondary signals and stay visually compact
-- The styling intentionally leans into a high-contrast cyber / reactor-control aesthetic while keeping the information readable
+- The tray menu is the primary surface for status, refresh, and lightweight settings
+- The app no longer opens a main window, so there is no always-on renderer to keep the GPU busy
+- Optional internal UI assets remain in the tree for reference, but they are not part of the normal launch path
 
 ## Privacy and Storage
 
@@ -95,6 +98,7 @@ The fallback snapshot format is intentionally simple:
 - Low-quota reminders stay quiet by default and are shown in the tray menu first
 - Runtime data and logs are kept out of version control
 - Local artifacts under `data/`, `logs/`, `.playwright-mcp/`, and other generated files are intended to remain untracked
+- The app no longer opens a heavyweight main window, which keeps the runtime lighter and avoids unnecessary GPU work
 
 ## Refresh Behavior
 
@@ -110,6 +114,7 @@ The fallback snapshot format is intentionally simple:
 - After a long sleep, stale local state is re-anchored to the current 5-hour window
 - Flow advice stays short, local, and non-intrusive
 - Burn-rate analysis is computed locally from quota snapshots only and does not inspect chats, prompts, or code content
+- The default renderer path is software-first to reduce the chance of a hot laptop during normal use
 
 ## Development Rules
 

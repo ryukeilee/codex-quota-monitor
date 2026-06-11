@@ -5,8 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
+  buildCodexSpawnEnv,
   normalizeRateLimitsResponse,
-  resolveCodexExecutablePath
+  resolveCodexExecutablePath,
+  resolveNodeExecutablePath
 } from '../src/session/codex-rate-limit-reader.js';
 
 test('normalizeRateLimitsResponse maps app-server rate limits into percent summaries', () => {
@@ -73,4 +75,24 @@ test('resolveCodexExecutablePath searches PATH-style directories', () => {
     },
     extraSearchPaths: []
   }), executablePath);
+});
+
+test('resolveNodeExecutablePath prefers an explicit executable path and keeps it on PATH for spawned codex children', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'node-path-'));
+  const nodeExecutablePath = path.join(tempDir, 'node');
+  fs.writeFileSync(nodeExecutablePath, '#!/bin/sh\nexit 0\n');
+  fs.chmodSync(nodeExecutablePath, 0o755);
+
+  assert.equal(resolveNodeExecutablePath({
+    env: {
+      NODE_BIN: nodeExecutablePath
+    }
+  }), nodeExecutablePath);
+
+  const spawnEnv = buildCodexSpawnEnv({
+    NODE_BIN: nodeExecutablePath,
+    PATH: '/usr/bin'
+  });
+
+  assert.ok(spawnEnv.PATH.split(path.delimiter).includes(tempDir));
 });

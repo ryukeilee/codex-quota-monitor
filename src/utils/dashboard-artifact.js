@@ -10,6 +10,19 @@ function formatRecovery(value) {
   return new Date(value).toLocaleString('zh-CN');
 }
 
+function isFreshEnough(value, maxAgeMs, now = Date.now()) {
+  if (!value || !Number.isFinite(maxAgeMs) || maxAgeMs <= 0) {
+    return false;
+  }
+
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) {
+    return false;
+  }
+
+  return now - timestamp <= maxAgeMs;
+}
+
 export function isLiveDashboard(dashboard) {
   return dashboard?.source?.label === 'codex-account-rate-limits';
 }
@@ -56,6 +69,7 @@ export function writeDashboardArtifact(dashboard, baseDir = process.cwd()) {
 }
 
 export function readDashboardArtifact(baseDir = process.cwd()) {
+  const maxAgeMs = 15 * 60 * 1000;
   const jsonPath = path.join(baseDir, 'data', 'latest-dashboard.json');
 
   if (!fs.existsSync(jsonPath)) {
@@ -64,7 +78,15 @@ export function readDashboardArtifact(baseDir = process.cwd()) {
 
   try {
     const dashboard = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-    return isLiveDashboard(dashboard) ? dashboard : null;
+    if (!isLiveDashboard(dashboard)) {
+      return null;
+    }
+
+    if (!isFreshEnough(dashboard.refreshedAt, maxAgeMs)) {
+      return null;
+    }
+
+    return dashboard;
   } catch {
     return null;
   }

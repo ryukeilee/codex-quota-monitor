@@ -8,10 +8,11 @@ import { readDashboardArtifact, writeDashboardArtifact } from '../src/utils/dash
 
 test('readDashboardArtifact returns the latest dashboard snapshot when present', () => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-monitor-dashboard-'));
+  const refreshedAt = new Date().toISOString();
 
   try {
     const dashboard = {
-      refreshedAt: '2026-06-09T02:10:37.541Z',
+      refreshedAt,
       source: {
         label: 'codex-account-rate-limits',
         file: 'codex app-server account/rateLimits/read'
@@ -95,6 +96,30 @@ test('readDashboardArtifact ignores local session dashboards that are not live q
       },
       summary: {
         remainingPercent: 0
+      }
+    }));
+
+    assert.equal(readDashboardArtifact(baseDir), null);
+  } finally {
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test('readDashboardArtifact ignores stale cached dashboards', () => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-monitor-dashboard-'));
+
+  try {
+    const dataDir = path.join(baseDir, 'data');
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(path.join(dataDir, 'latest-dashboard.json'), JSON.stringify({
+      refreshedAt: '2026-06-09T00:00:00.000Z',
+      source: {
+        label: 'codex-account-rate-limits',
+        file: 'codex app-server account/rateLimits/read',
+        origin: 'codex_app_server'
+      },
+      summary: {
+        remainingPercent: 99
       }
     }));
 

@@ -3,6 +3,12 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_NODE_SEARCH_PATHS = [
+  '/opt/homebrew/bin',
+  '/usr/local/bin',
+  '/usr/bin',
+  '/bin'
+];
 const DEFAULT_CODEX_SEARCH_PATHS = [
   '/opt/homebrew/bin',
   '/usr/local/bin',
@@ -72,10 +78,30 @@ export function normalizeRateLimitsResponse(response) {
   };
 }
 
+export function buildCodexSpawnEnv(env = process.env, extraSearchPaths = []) {
+  const nodeExecutable = resolveNodeExecutablePath({
+    env,
+    extraSearchPaths
+  });
+  const nodeDir = path.dirname(nodeExecutable);
+  const existingPathEntries = env.PATH ? env.PATH.split(path.delimiter) : [];
+  const mergedPath = [...new Set([
+    nodeDir,
+    ...DEFAULT_NODE_SEARCH_PATHS,
+    ...existingPathEntries
+  ].filter(Boolean))].join(path.delimiter);
+
+  return {
+    ...env,
+    PATH: mergedPath
+  };
+}
+
 function createJsonRpcClient({ cwd, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const child = spawn(resolveCodexExecutablePath(), ['app-server', '--stdio'], {
     cwd,
-    stdio: ['pipe', 'pipe', 'pipe']
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: buildCodexSpawnEnv(process.env)
   });
 
   let stdoutBuffer = '';
@@ -233,6 +259,37 @@ export function resolveCodexExecutablePath({
 
   throw new Error(
     `unable to locate codex executable; checked CODEX_BIN/CODEX_EXECUTABLE, PATH, and ${DEFAULT_CODEX_SEARCH_PATHS.join(', ')}`
+  );
+}
+
+export function resolveNodeExecutablePath({
+  env = process.env,
+  extraSearchPaths = []
+} = {}) {
+  const explicitPath = env.NODE_BIN ?? env.NODE_EXECUTABLE;
+  if (explicitPath && isExecutableFile(explicitPath)) {
+    return explicitPath;
+  }
+
+  const searchPaths = [
+    ...extraSearchPaths,
+    ...(env.PATH ? env.PATH.split(path.delimiter) : []),
+    ...DEFAULT_NODE_SEARCH_PATHS
+  ];
+
+  for (const dir of searchPaths) {
+    if (!dir) {
+      continue;
+    }
+
+    const candidate = dir.endsWith('node') ? dir : path.join(dir, 'node');
+    if (isExecutableFile(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `unable to locate node executable; checked NODE_BIN/NODE_EXECUTABLE, PATH, and ${DEFAULT_NODE_SEARCH_PATHS.join(', ')}`
   );
 }
 

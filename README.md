@@ -85,7 +85,7 @@ The fallback snapshot format is intentionally simple:
 - Normal timer refresh runs every 5 minutes
 - Forced refreshes are deduped within 10 seconds
 - Sleep pauses the scheduler instead of letting background timers run
-- Mac wake and screen unlock resume with retries at 5s, 15s, 30s, and 60s
+- Mac wake and screen unlock trigger one immediate refresh, then retry at 5s, 15s, 30s, and 60s if needed
 - Wake retry sequences stop after the first successful live refresh
 - Failure paths enter backoff and keep the next refresh chain alive
 - After a long sleep, stale local state is re-anchored to the current 5-hour window

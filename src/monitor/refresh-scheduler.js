@@ -319,7 +319,11 @@ export function createRefreshScheduler({
         return;
       }
 
-      scheduleWakeRetry(0);
+      void triggerRefresh({
+        reason,
+        force: true,
+        wakeRetryAttempt: 0
+      });
     },
     dispose() {
       disposed = true;

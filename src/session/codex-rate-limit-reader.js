@@ -484,17 +484,24 @@ async function fetchWhamUsageRateLimits({
 
   const controller = new AbortController();
   let timedOut = false;
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    controller.abort(new Error('wham usage request timed out'));
-  }, timeoutMs);
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new Error('wham usage request timed out'));
+      reject(createWhamUsageError('timeout', 'wham usage request timed out'));
+    }, timeoutMs);
+  });
 
   try {
-    const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/wham/usage`, {
-      method: 'GET',
-      headers,
-      signal: controller.signal
-    });
+    const response = await Promise.race([
+      fetchImpl(`${baseUrl.replace(/\/$/, '')}/wham/usage`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      }),
+      timeoutPromise
+    ]);
 
     const contentType = response.headers.get('content-type') ?? '';
     const bodyText = await response.text();
@@ -542,7 +549,9 @@ async function fetchWhamUsageRateLimits({
       cause: error
     });
   } finally {
-    clearTimeout(timeout);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 }
 

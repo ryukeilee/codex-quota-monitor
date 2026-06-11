@@ -373,3 +373,38 @@ test('readLiveRateLimits falls back to app-server after a wham transport failure
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('readLiveRateLimits times out a hanging wham usage request in wham-only mode', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-wham-timeout-'));
+  const authFilePath = path.join(tempDir, 'auth.json');
+
+  fs.writeFileSync(authFilePath, JSON.stringify({
+    auth_mode: 'chatgpt',
+    tokens: {
+      access_token: 'test-access-token',
+      account_id: 'acct-test-123'
+    }
+  }));
+
+  try {
+    const attempts = [];
+    await assert.rejects(
+      readLiveRateLimits({
+        authFilePath,
+        sourcePreference: 'wham_usage',
+        timeoutMs: 50,
+        fetchImpl: async () => new Promise(() => {}),
+        onSourceAttemptFailure: (failure) => {
+          attempts.push(failure);
+        }
+      }),
+      (error) => error?.kind === 'timeout' && error?.sourceOrigin === 'wham_usage'
+    );
+
+    assert.equal(attempts.length, 1);
+    assert.equal(attempts[0].sourceOrigin, 'wham_usage');
+    assert.equal(attempts[0].kind, 'timeout');
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

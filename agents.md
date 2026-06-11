@@ -49,6 +49,8 @@ Codex Monitor 是一个本地运行、隐私优先的 macOS 菜单栏工具。
 
 - 刷新必须通过统一调度器管理，避免多个地方各自维护 `setInterval` / `setTimeout`
 - 优先读取已登录 ChatGPT 账号的 `wham/usage` 实时额度；只有该路径不可用时才回退到本机 app-server，再回退到本地快照
+- `wham/usage` 失败时要尽量区分 `timeout`、`transport`、`auth`、`status` 四类原因，便于判断是网络、鉴权还是服务端响应问题
+- 在 `auto` 模式下，`wham/usage` 与 app-server 应视为同级 live fallback，只有两者都失败后才回退到本地快照
 - app-server 读取时优先使用 `rateLimitsByLimitId.codex`，允许 `primary-only` 返回，并在可能时用 `rateLimitsByLimitId.codex_other` 补充周额度
 - 只有 `primary` 缺失时才把 app-server 响应视为无效
 - 睡眠期间暂停刷新，唤醒后再恢复

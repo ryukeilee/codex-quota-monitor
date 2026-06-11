@@ -444,20 +444,25 @@ function renderDashboard(dashboard) {
 
 elements.refreshButton.addEventListener('click', async () => {
   setRefreshButtonState(true);
-  const dashboard = await window.codexMonitor.refreshQuota({
-    reason: 'manual',
-    force: true
-  }).catch((error) => {
+  try {
+    await window.codexMonitor.refreshQuota({
+      reason: 'manual',
+      force: true
+    });
+
+    const latestDashboard = await window.codexMonitor.loadDashboard().catch((error) => {
+      console.error('reload dashboard after manual refresh failed', error);
+      return null;
+    });
+
+    if (latestDashboard) {
+      renderDashboard(latestDashboard);
+    }
+  } catch (error) {
     console.error('manual refresh failed', error);
-    return null;
-  });
-
-  if (dashboard) {
-    renderDashboard(dashboard);
-    return;
+  } finally {
+    setRefreshButtonState(false);
   }
-
-  setRefreshButtonState(false);
 });
 
 elements.preferencesForm.addEventListener('submit', async (event) => {

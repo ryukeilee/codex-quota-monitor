@@ -11,6 +11,7 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - Local-first and privacy-first by design
 - Automatic refresh with a unified low-frequency scheduler
 - Manual refresh shows a clear busy state so it is obvious when a refresh is in progress
+- After manual refresh completes, the app re-reads the latest dashboard before repainting the UI, so the view stays aligned with the underlying data
 - Tray menu stays compact and only surfaces the most important status at a glance
 - HUD-style dashboard with a single-screen control layout, status radar, and reactor-like quota readout
 - Quota burn rate analysis that answers whether the current pace is too fast, how long it can last, and whether intensity should be lowered

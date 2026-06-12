@@ -77,6 +77,7 @@ export function createRefreshScheduler({
   let wakeReason = 'resume';
   let refreshWatchdogTimer = null;
   let activeRefreshId = 0;
+  let currentRefreshReason = null;
 
   function publishState(overrides = {}) {
     onStateChange?.({
@@ -259,12 +260,23 @@ export function createRefreshScheduler({
     }
 
     if (inFlightRefresh) {
-      return inFlightRefresh;
+      if (reason === 'manual' && currentRefreshReason !== 'manual') {
+        logger.info({
+          requestedReason: reason,
+          currentReason: currentRefreshReason
+        }, 'manual refresh preempting in-flight refresh');
+        activeRefreshId += 1;
+        clearRefreshWatchdog();
+        inFlightRefresh = null;
+      } else {
+        return inFlightRefresh;
+      }
     }
 
     clearTimer();
     clearRefreshWatchdog();
     const refreshId = ++activeRefreshId;
+    currentRefreshReason = reason;
     schedulerState = 'refreshing';
     isRetryingAfterWake = wakeRetryAttempt != null;
     retryAttempt = wakeRetryAttempt;
@@ -290,6 +302,7 @@ export function createRefreshScheduler({
           return lastDashboard;
         }
         inFlightRefresh = null;
+        currentRefreshReason = null;
         clearRefreshWatchdog();
         consecutiveFailures += 1;
         isRetryingAfterWake = false;
@@ -300,6 +313,7 @@ export function createRefreshScheduler({
     })().finally(() => {
       if (refreshId === activeRefreshId) {
         inFlightRefresh = null;
+        currentRefreshReason = null;
         clearRefreshWatchdog();
       }
     });
@@ -332,6 +346,7 @@ export function createRefreshScheduler({
             });
 
             inFlightRefresh = null;
+            currentRefreshReason = null;
             clearRefreshWatchdog();
             if (wakeRetryAttempt != null) {
               scheduleWakeRetry(wakeRetryAttempt);

@@ -119,6 +119,45 @@ test('manual refresh dedupes in-flight work and keeps a single next timer', asyn
   assert.equal(scheduler.getSnapshot().schedulerState, 'idle');
 });
 
+test('manual refresh preempts a non-manual in-flight refresh', async () => {
+  const clock = createFakeClock();
+  const resolvers = [];
+  let callCount = 0;
+  const runRefresh = () => {
+    callCount += 1;
+    return new Promise((resolve) => {
+      resolvers.push(() => resolve(createDashboard({
+        refreshInterval: 60 * 1000
+      })));
+    });
+  };
+  const scheduler = createRefreshScheduler({
+    runRefresh,
+    now: clock.now,
+    setTimeoutFn: clock.setTimeoutFn,
+    clearTimeoutFn: clock.clearTimeoutFn
+  });
+
+  const startupRefresh = scheduler.requestRefresh({
+    reason: 'startup',
+    force: true
+  });
+  const manualRefresh = scheduler.requestRefresh({
+    reason: 'manual'
+  });
+
+  assert.equal(callCount, 2);
+  assert.notEqual(startupRefresh, manualRefresh);
+
+  resolvers[1]();
+  await manualRefresh;
+  assert.equal(clock.pendingTimerCount(), 1);
+  assert.equal(scheduler.getSnapshot().schedulerState, 'idle');
+
+  resolvers[0]();
+  await startupRefresh;
+});
+
 test('degraded refresh results enter backoff instead of normal cadence', async () => {
   const clock = createFakeClock();
   const scheduler = createRefreshScheduler({

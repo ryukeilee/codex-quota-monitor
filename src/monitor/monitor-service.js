@@ -255,16 +255,19 @@ export async function createMonitorService({
       records: storedUsageRecords.length > 0 ? storedUsageRecords : snapshot.records,
       now
     });
-    const flowAdvice = buildFlowAdvice({
-      weeklySummary,
-      summary,
-      refreshStatus,
-      sourceOrigin
-    });
     const history = database.getRecentSnapshotsSince(new Date(now.getTime() - FIVE_HOUR_WINDOW_MS).toISOString());
     const quotaBurnRate = analyzeQuotaBurnRate({
       snapshots: database.getQuotaSnapshotsSince(new Date(now.getTime() - SEVEN_DAYS_MS).toISOString()),
       now
+    });
+    const flowAdvice = buildFlowAdvice({
+      weeklySummary,
+      summary,
+      refreshStatus,
+      quotaBurnRate,
+      prediction,
+      now,
+      sourceOrigin
     });
     const trendHistory = history.length > 1 && history.some((entry) => Number.isFinite(entry.remainingPercent))
       ? history
@@ -319,6 +322,8 @@ export async function createMonitorService({
           dataSource: 'unknown',
           freshness: 'unknown'
         }),
+        quotaHealth: 'error',
+        now,
         sourceOrigin: 'unknown'
       }),
       refreshInterval: overrides.refreshInterval ?? LIVE_RATE_LIMIT_REFRESH_FLOOR_MS,
@@ -363,22 +368,43 @@ export async function createMonitorService({
         : 'success';
     }
 
+    const publishedRefreshStatus = createRefreshStatus({
+      ...refreshStatus,
+      phase,
+      dataSource,
+      freshness: computeFreshness({
+        lastSuccessAt,
+        refreshInterval: currentDashboard.refreshInterval
+      }),
+      lastSuccessAt
+    });
+    const quotaHealth = buildQuotaHealthStatus({
+      ...currentDashboard,
+      source: {
+        ...currentDashboard.source,
+        origin: currentDashboard.source?.origin ?? dataSource
+      },
+      refreshStatus: publishedRefreshStatus
+    });
+    const flowAdvice = buildFlowAdvice({
+      weeklySummary: currentDashboard.weeklySummary,
+      summary: currentDashboard.summary,
+      quotaBurnRate: currentDashboard.quotaBurnRate,
+      refreshStatus: publishedRefreshStatus,
+      quotaHealth,
+      prediction: currentDashboard.prediction,
+      now: new Date(),
+      sourceOrigin: currentDashboard.source?.origin ?? dataSource
+    });
+
     dashboard = {
       ...currentDashboard,
       source: {
         ...currentDashboard.source,
         origin: currentDashboard.source?.origin ?? dataSource
       },
-      refreshStatus: createRefreshStatus({
-        ...refreshStatus,
-        phase,
-        dataSource,
-        freshness: computeFreshness({
-          lastSuccessAt,
-          refreshInterval: currentDashboard.refreshInterval
-        }),
-        lastSuccessAt
-      }),
+      refreshStatus: publishedRefreshStatus,
+      flowAdvice,
       isRefreshing: phase === 'refreshing',
       lastSuccessfulRefreshAt: lastSuccessAt,
       lastRefreshStartedAt: refreshStatus.lastAttemptAt,
@@ -391,18 +417,7 @@ export async function createMonitorService({
         lastSuccessfulRefreshAt: lastSuccessAt,
         refreshInterval: currentDashboard.refreshInterval
       }),
-      quotaHealth: buildQuotaHealthStatus({
-        ...currentDashboard,
-        source: {
-          ...currentDashboard.source,
-          origin: currentDashboard.source?.origin ?? dataSource
-        },
-        refreshStatus: createRefreshStatus({
-          ...refreshStatus,
-          dataSource,
-          lastSuccessAt
-        })
-      })
+      quotaHealth
     };
     onUpdated(dashboard);
   }

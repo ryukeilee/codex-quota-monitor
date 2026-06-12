@@ -23,6 +23,7 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - Tray menu stays compact and only surfaces the most important status at a glance
 - Pure menu bar operation with no always-open main window
 - Quota burn rate analysis that answers whether the current pace is too fast, how long it can last, and whether intensity should be lowered
+- One-line local flow advice combines quota, freshness, refresh health, and burn rate into a direct development decision
 - Auto-launch support
 
 ## Quick Start
@@ -87,6 +88,7 @@ The fallback snapshot format is intentionally simple:
 - Shows data status, a short reason line when needed, and keeps the tray menu compact
 - Surfaces a compact overview first so the tray stays easy to scan
 - Keeps deeper details out of the first glance
+- Shows one-line flow advice such as `建议 继续开发 · 保持当前节奏` or `建议 只做小修 · 避免大重构`
 - Keeps manual refresh separate from settings toggles
 - Keeps the app menu-bar only, with settings and refresh actions living in the tray menu
 - Does not expose menu toggles for menu-bar percentage display or pure menu-bar mode
@@ -102,7 +104,8 @@ The fallback snapshot format is intentionally simple:
 - No browser session is required
 - No Chrome dependency is needed
 - The app reads local Codex state only
-- Flow advice is derived from local quota levels, freshness, and refresh state only
+- Flow advice is derived from local quota levels, freshness, refresh state, and burn rate only
+- The advice stays to one short line, such as whether to keep going, slow down, do small fixes, wait for recovery, or refresh first
 - Refresh logs are redacted to avoid leaking tokens, cookies, or account details
 - Low-quota reminders stay quiet by default and are shown in the tray menu first
 - Runtime data and logs are kept out of version control
@@ -135,6 +138,8 @@ The fallback snapshot format is intentionally simple:
 This project is optimized for AI-assisted development with Codex and GPT Projects.
 
 The core development rules live in [agents.md](./agents.md). Keep implementations local-first, privacy-first, low-frequency, aligned with the native macOS menu bar style, and focused on long-term stability.
+
+Latest local verification: `npm test` and `npm run build:app` pass, producing `dist/Codex Monitor.app`.
 
 ## Chinese Documentation
 

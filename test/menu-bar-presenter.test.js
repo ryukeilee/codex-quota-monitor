@@ -56,11 +56,12 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
       basedOnHours: 8
     },
     flowAdvice: {
-      level: 'light',
-      title: '适合小步推进',
-      message: '额度还行，先做小任务或拆分推进。',
-      recommendedWork: ['小功能', '修 bug', '补测试'],
-      avoidWork: ['大重构', '跨模块改动'],
+      level: 'healthy',
+      title: '继续开发',
+      message: '保持当前节奏',
+      action: 'keep',
+      recommendedWork: ['继续开发'],
+      avoidWork: [],
       basedOnStaleData: false
     },
     preferences: {
@@ -79,7 +80,7 @@ test('buildMenuBarState exposes percentage title and concise tray menu labels', 
   assert.equal(state.lines.updateLabel, '更新时间：18:12');
   assert.equal(state.lines.reasonLabel, null);
   assert.equal(state.lines.burnRateLabel, '消耗 平稳 · 约 12h');
-  assert.equal(state.lines.adviceLabel, '建议 适合小步推进');
+  assert.equal(state.lines.adviceLabel, '建议 继续开发 · 保持当前节奏');
 });
 
 test('buildMenuBarState shows delayed health metadata when data is older than 10 minutes', () => {

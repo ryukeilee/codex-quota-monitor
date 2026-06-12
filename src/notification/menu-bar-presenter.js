@@ -43,7 +43,9 @@ function formatPredictionState(prediction) {
 
 function formatFlowAdviceState(flowAdvice, prediction) {
   if (flowAdvice?.title) {
-    return flowAdvice.title;
+    return flowAdvice.message
+      ? `${flowAdvice.title} · ${flowAdvice.message}`
+      : flowAdvice.title;
   }
 
   return formatPredictionState(prediction);

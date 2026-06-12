@@ -16,6 +16,7 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - The tray shows the most recent update time and warns when data is older than 10 minutes
 - The tray also surfaces a lightweight data health view with status and a short reason line
 - Refresh flow logs are kept at the source, data, state, and UI boundary so manual, interval, startup, and resume refreshes can be traced end to end
+- For refresh failures, check `logs/quota-refresh.log` first, then run `npm run debug:quota-source` to inspect live and snapshot readers without opening the UI
 - The app defaults to conservative rendering and avoids always-on visual effects that can keep Electron’s GPU usage elevated
 - The history chart is treated as optional and stays disabled by default unless explicitly enabled for debugging
 - When weekly quota is temporarily unavailable, the tray keeps weekly fields as unavailable instead of substituting the 5-hour value
@@ -123,6 +124,7 @@ The fallback snapshot format is intentionally simple:
 - In `auto` mode, live quota reads try `wham/usage` first and then the local app-server before they give up to local snapshot data
 - Refresh diagnostics distinguish `manual`, `interval`, `startup`, and `resume` paths so refresh-chain breakpoints are easier to inspect from logs
 - Manual refresh preempts older non-manual in-flight work, which keeps the tray button responsive even if startup refresh is still running
+- The concurrent refresh guard uses a dedicated in-flight flag instead of the refresh-status phase, preventing a deadlock where the scheduler's phase change would cause the monitor service to skip every refresh after the first one
 - After a long sleep, stale local state is re-anchored to the current 5-hour window
 - Flow advice stays short, local, and non-intrusive
 - Burn-rate analysis is computed locally from quota snapshots only and does not inspect chats, prompts, or code content

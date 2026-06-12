@@ -10,6 +10,7 @@
     "start": "electron .",
     "dev": "electron .",
     "build:app": "node ./scripts/build-macos-app.mjs",
+    "debug:quota-source": "node ./scripts/debug-quota-source.mjs",
     "open:app": "open \"./dist/Codex Monitor.app\""
   },
   "dependencies": {

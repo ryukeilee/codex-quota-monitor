@@ -203,7 +203,7 @@ export function buildMenuBarState(dashboard, { now = new Date() } = {}) {
   const burnRateLabel = formatBurnRateLabel(dashboard.quotaBurnRate);
   const adviceLabel = formatAdviceLabel(dashboard.flowAdvice, dashboard.prediction);
   const refreshActionLabel = formatRefreshActionLabel(refreshStatus, quotaHealth);
-  const refreshActionEnabled = refreshStatus.phase !== 'refreshing' && refreshStatus.phase !== 'sleep_recovering';
+  const refreshActionEnabled = true;
   const updateLabel = formatUpdateLabel(lastSuccessAt ?? dashboard.refreshedAt ?? null);
   const healthStatusLabel = `数据状态：${formatQuotaHealthStatusLabel(quotaHealth)}`;
   const healthUpdateLabel = `更新时间：${formatQuotaHealthTime(quotaHealth.lastSuccessfulRefreshAt ?? lastSuccessAt ?? dashboard.refreshedAt ?? null)}`;

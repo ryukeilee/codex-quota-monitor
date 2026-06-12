@@ -17,6 +17,9 @@ import {
   sanitizeDiagnosticMessage
 } from './diagnostics.js';
 import {
+  recordQuotaRefreshError
+} from '../utils/refresh-error-trace.js';
+import {
   createRefreshStatus,
   computeFreshness
 } from '../core/refresh-status.js';
@@ -55,7 +58,8 @@ export async function createMonitorService({
   getSystemPreferences,
   applySystemPreferences,
   workspaceRoot = process.cwd(),
-  storageRoot = process.cwd()
+  storageRoot = process.cwd(),
+  userDataRoot = process.cwd()
 }) {
   const database = createDatabase(storageRoot);
   let reader = createSnapshotSourceRouter({
@@ -65,6 +69,7 @@ export async function createMonitorService({
   });
   let dashboard = null;
   let refreshStatus = createRefreshStatus();
+  let refreshInProgress = false;
   let lastNotifiedState = null;
   let lastForcedRefreshAt = null;
   let refreshRecoveryTimer = null;
@@ -158,6 +163,8 @@ export async function createMonitorService({
         dataSource: refreshStatus.dataSource,
         timeoutMs: REFRESH_RECOVERY_TIMEOUT_MS
       }, 'refresh recovery timeout fired');
+
+      refreshInProgress = false;
 
       refreshStatus = createRefreshStatus({
         ...refreshStatus,
@@ -463,7 +470,7 @@ export async function createMonitorService({
       before: beforeSnapshot
     }, '[refresh:start]');
 
-    if (refreshStatus.phase === 'refreshing') {
+    if (refreshInProgress) {
       scheduleRefreshRecoveryTimer();
       logger.info({
         source: refreshSource,
@@ -531,6 +538,8 @@ export async function createMonitorService({
     });
     scheduleRefreshRecoveryTimer();
 
+    refreshInProgress = true;
+
     if (force) {
       lastForcedRefreshAt = startedAt;
     }
@@ -551,6 +560,7 @@ export async function createMonitorService({
       try {
         const liveRateLimits = await readLiveRateLimits({
           cwd: workspaceRoot,
+          logger,
           onSourceAttemptFailure: ({ sourceOrigin, kind, error }) => {
             if (sourceOrigin !== 'wham_usage') {
               return;
@@ -624,12 +634,23 @@ export async function createMonitorService({
           lastErrorMessage: null
         });
         clearRefreshRecoveryTimer();
-      } catch (error) {
-        refreshError = error?.message ?? String(error);
-        refreshErrorCode = classifyRefreshError(error);
-        logger.info({
-          error: refreshError
-        }, 'live rate-limit read failed, falling back to cached dashboard or local snapshot data');
+    } catch (error) {
+      refreshError = error?.message ?? String(error);
+      refreshErrorCode = classifyRefreshError(error);
+      recordQuotaRefreshError({
+        userDataRoot,
+        stage: 'live-read',
+        source: reason,
+        error,
+        fallback: true,
+        context: {
+          refreshSource: 'live',
+          workspaceRoot
+        }
+      });
+      logger.info({
+        error: refreshError
+      }, 'live rate-limit read failed, falling back to cached dashboard or local snapshot data');
 
         const snapshotResult = await reader.readSnapshot();
         if (snapshotResult?.snapshot?.records?.length) {
@@ -764,6 +785,17 @@ export async function createMonitorService({
       }
 
       if (!dashboard) {
+        recordQuotaRefreshError({
+          userDataRoot,
+          stage: 'refresh-final',
+          source: reason,
+          error: new Error(refreshError ?? 'dashboard refresh failed'),
+          fallback: false,
+          context: {
+            refreshSource,
+            workspaceRoot
+          }
+        });
         throw new Error(refreshError ?? 'dashboard refresh failed');
       }
 
@@ -808,6 +840,18 @@ export async function createMonitorService({
     } catch (error) {
       const errorMessage = error?.message ?? String(error);
       const errorCode = classifyRefreshError(error);
+      recordQuotaRefreshError({
+        userDataRoot,
+        stage: 'refresh-final',
+        source: reason,
+        error,
+        fallback: Boolean(dashboard?.summary),
+        context: {
+          refreshSource: dashboard?.source?.origin ?? inferDataSource(dashboard),
+          errorCode,
+          workspaceRoot
+        }
+      });
       refreshStatus = createRefreshStatus({
         ...refreshStatus,
         phase: dashboard?.summary ? 'using_snapshot' : 'failed',
@@ -861,6 +905,9 @@ export async function createMonitorService({
         error: errorMessage
       }, 'refresh failed');
       throw error;
+    } finally {
+      refreshInProgress = false;
+      clearRefreshRecoveryTimer();
     }
   }
 

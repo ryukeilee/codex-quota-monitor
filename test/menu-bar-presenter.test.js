@@ -354,7 +354,7 @@ test('buildMenuBarState shows a busy refresh action while refreshing', () => {
   });
 
   assert.equal(state.refreshAction.label, '正在刷新...');
-  assert.equal(state.refreshAction.enabled, false);
+  assert.equal(state.refreshAction.enabled, true);
 });
 
 test('buildMenuBarState surfaces manual refresh outcomes in the action label', () => {

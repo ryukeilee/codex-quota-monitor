@@ -13,6 +13,7 @@ release/
 # Runtime data and logs
 data/
 logs/
+diagnostics.json
 .playwright-mcp/
 analytics-gate.png
 *.log

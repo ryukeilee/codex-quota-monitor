@@ -61,6 +61,8 @@ Codex Monitor 是一个本地运行、隐私优先的 macOS 菜单栏工具。
 - 手动刷新可以抢占启动、定时或唤醒中的非手动 in-flight 刷新，避免旧请求把新的手动操作拖成失败
 - 任何一次刷新失败都不应阻断后续调度
 - 刷新链路需要保留可追踪日志，至少区分 `manual`、`interval`、`startup`、`resume` 等来源，便于排查入口、数据读取、状态写入和菜单重建是否闭环
+- 排查刷新失败时优先查看 `logs/quota-refresh.log` 和 `npm run debug:quota-source` 的输出，再决定是否调整刷新逻辑
+- monitor-service 的并发刷新守卫不得依赖 `refreshStatus.phase`，因为调度器在调用 `runRefresh` 前会通过 `publishState` 将阶段设为 `refreshing`，导致守卫误判为"已有 in-flight 刷新"而跳过实际请求。应使用独立的 `refreshInProgress` 布尔标志来控制并发，调度器可以自由发布阶段变更而不阻塞实际刷新
 
 ## 菜单栏规则
 

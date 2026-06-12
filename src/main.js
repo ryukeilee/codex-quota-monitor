@@ -9,6 +9,7 @@ import { resolveRuntimeRoots } from './core/runtime-roots.js';
 import { buildMenuBarState } from './notification/menu-bar-presenter.js';
 import { buildTrayIconSvg } from './utils/icon-assets.js';
 import { createLogger } from './utils/logger.js';
+import { recordQuotaRefreshError } from './utils/refresh-error-trace.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -136,6 +137,12 @@ function updateTray(dashboard) {
       label: refreshAction.label,
       enabled: refreshAction.enabled,
       click: async () => {
+        logger.info({
+          source: currentDashboard?.refreshStatus?.lastRefreshReason ?? 'unknown',
+          phase: currentDashboard?.refreshStatus?.phase ?? 'idle',
+          dataSource: currentDashboard?.refreshStatus?.dataSource ?? currentDashboard?.source?.origin ?? 'unknown',
+          refreshedAt: currentDashboard?.refreshedAt ?? null
+        }, '[refresh:manual-click]');
         if (monitorService && refreshAction.enabled) {
           const optimisticDashboard = {
             ...dashboard,
@@ -156,8 +163,18 @@ function updateTray(dashboard) {
               force: true
             });
           } catch (error) {
+            recordQuotaRefreshError({
+              userDataRoot: app.getPath('userData'),
+              stage: 'manual-action',
+              source: 'manual',
+              error,
+              fallback: Boolean(currentDashboard?.summary),
+              context: {
+                refreshSource: currentDashboard?.refreshStatus?.dataSource ?? currentDashboard?.source?.origin ?? 'unknown'
+              }
+            });
             logger.error({
-              error: error?.message ?? String(error)
+              error
             }, 'manual refresh failed');
           }
         }
@@ -241,7 +258,8 @@ async function bootstrap() {
     getSystemPreferences,
     applySystemPreferences,
     workspaceRoot,
-    storageRoot
+    storageRoot,
+    userDataRoot: app.getPath('userData')
   });
   refreshScheduler = createRefreshScheduler({
     runRefresh: (options) => monitorService.refreshQuota(options),

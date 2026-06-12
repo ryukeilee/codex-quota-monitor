@@ -243,11 +243,22 @@ export function buildCodexSpawnEnv(env = process.env, extraSearchPaths = []) {
   };
 }
 
-function createJsonRpcClient({ cwd, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
-  const child = spawn(resolveCodexExecutablePath(), ['app-server', '--stdio'], {
+function createJsonRpcClient({ cwd, timeoutMs = DEFAULT_TIMEOUT_MS, logger = null } = {}) {
+  const executablePath = resolveCodexExecutablePath();
+  const spawnArgs = ['app-server', '--stdio'];
+  const spawnEnv = buildCodexSpawnEnv(process.env);
+
+  logger?.info?.({
+    executablePath,
+    spawnArgs,
+    cwd,
+    path: spawnEnv.PATH
+  }, 'spawning codex app-server client');
+
+  const child = spawn(executablePath, spawnArgs, {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: buildCodexSpawnEnv(process.env)
+    env: spawnEnv
   });
 
   let stdoutBuffer = '';
@@ -557,11 +568,12 @@ async function fetchWhamUsageRateLimits({
 
 async function readAppServerRateLimits({
   cwd,
-  timeoutMs
+  timeoutMs,
+  logger = null
 }) {
   let client = null;
   try {
-    client = createJsonRpcClient({ cwd, timeoutMs });
+    client = createJsonRpcClient({ cwd, timeoutMs, logger });
     await client.ready;
     const result = await client.request('account/rateLimits/read');
     const normalized = normalizeRateLimitsResponse(result);
@@ -591,7 +603,8 @@ export async function readLiveRateLimits({
   baseUrl = DEFAULT_CHATGPT_BACKEND_URL,
   fetchImpl = fetch,
   sourcePreference = 'auto',
-  onSourceAttemptFailure = null
+  onSourceAttemptFailure = null,
+  logger = null
 } = {}) {
   const auth = readAuthJson(authFilePath);
   const canUseWham = auth?.auth_mode === 'chatgpt';
@@ -615,7 +628,8 @@ export async function readLiveRateLimits({
 
       return await readAppServerRateLimits({
         cwd,
-        timeoutMs
+        timeoutMs,
+        logger
       });
     } catch (error) {
       lastError = error;

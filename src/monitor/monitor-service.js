@@ -215,6 +215,25 @@ export async function createMonitorService({
     }, getSystemPreferences ? getSystemPreferences() : {});
   }
 
+  function buildRefreshLogSnapshot(currentDashboard) {
+    return {
+      sourceOrigin: currentDashboard?.source?.origin ?? 'unknown',
+      sourceLabel: currentDashboard?.source?.label ?? null,
+      dataSource: currentDashboard?.refreshStatus?.dataSource ?? currentDashboard?.source?.origin ?? 'unknown',
+      phase: currentDashboard?.refreshStatus?.phase ?? 'idle',
+      weeklyRemainingPercent: currentDashboard?.weeklySummary?.remainingPercent ?? null,
+      fiveHourRemainingPercent: currentDashboard?.summary?.remainingPercent ?? null,
+      refreshedAt: currentDashboard?.refreshedAt ?? null,
+      lastSuccessAt: currentDashboard?.refreshStatus?.lastSuccessAt ?? currentDashboard?.lastSuccessfulRefreshAt ?? null,
+      lastFailureAt: currentDashboard?.refreshStatus?.lastFailureAt ?? null,
+      lastRefreshReason: currentDashboard?.refreshStatus?.lastRefreshReason ?? currentDashboard?.lastRefreshReason ?? null,
+      isFallback: currentDashboard?.refreshStatus?.phase === 'using_snapshot'
+        || currentDashboard?.refreshStatus?.dataSource === 'local_snapshot'
+        || currentDashboard?.refreshStatus?.dataSource === 'memory_cache',
+      isStale: currentDashboard?.isStale ?? null
+    };
+  }
+
   function buildDashboard(snapshot, preferences, sourceFile, summary, storedUsageRecords, overrides = {}) {
     const now = new Date();
     const sourceOrigin = overrides.sourceOrigin ?? 'codex_app_server';
@@ -432,14 +451,26 @@ export async function createMonitorService({
   } = {}) {
     const startedAt = new Date().toISOString();
     const previousForcedRefreshAt = lastForcedRefreshAt;
+    const refreshSource = reason;
+    const beforeSnapshot = buildRefreshLogSnapshot(dashboard);
+
+    logger.info({
+      source: refreshSource,
+      at: startedAt,
+      force,
+      isRetryingAfterWake,
+      retryAttempt,
+      before: beforeSnapshot
+    }, '[refresh:start]');
 
     if (refreshStatus.phase === 'refreshing') {
       scheduleRefreshRecoveryTimer();
-      logger.debug({
-        reason,
-        force,
-        cause: 'in-flight'
-      }, 'refresh skipped');
+      logger.info({
+        source: refreshSource,
+        at: startedAt,
+        cause: 'in-flight',
+        before: beforeSnapshot
+      }, '[refresh:skipped]');
       if (dashboard) {
         refreshStatus = createRefreshStatus({
           ...refreshStatus,
@@ -463,13 +494,13 @@ export async function createMonitorService({
     if (shouldDedupForcedRefresh && previousForcedRefreshAt) {
       const elapsedMs = Date.now() - new Date(previousForcedRefreshAt).getTime();
       if (elapsedMs < FORCE_DEDUPE_MS && dashboard) {
-        logger.debug({
-          reason,
-          force,
+        logger.info({
+          source: refreshSource,
+          at: startedAt,
           cause: 'forced-deduped',
-          elapsedMs
-        }, 'refresh skipped');
-      if (dashboard) {
+          elapsedMs,
+          before: beforeSnapshot
+        }, '[refresh:skipped]');
         refreshStatus = createRefreshStatus({
           ...refreshStatus,
           lastAttemptAt: startedAt,
@@ -483,8 +514,7 @@ export async function createMonitorService({
           dashboard,
           message: 'forced refresh deduped'
         });
-      }
-      return dashboard;
+        return dashboard;
       }
     }
 
@@ -508,11 +538,6 @@ export async function createMonitorService({
     if (dashboard) {
       publishDashboard(dashboard);
     }
-
-    logger.debug({
-      reason,
-      force
-    }, 'refresh start');
 
     const persistedPreferences = database.getPreferences();
     const now = new Date();
@@ -580,6 +605,13 @@ export async function createMonitorService({
         );
         refreshSource = liveRateLimits.sourceOrigin ?? 'codex_app_server';
         refreshAt = dashboard.refreshedAt;
+        logger.info({
+          source: reason,
+          dataSource: refreshSource,
+          refreshedAt: refreshAt,
+          weeklyRemainingPercent: dashboard.weeklySummary?.remainingPercent ?? null,
+          fiveHourRemainingPercent: dashboard.summary?.remainingPercent ?? null
+        }, '[refresh:data]');
         refreshStatus = createRefreshStatus({
           ...refreshStatus,
           phase: 'success',
@@ -654,6 +686,14 @@ export async function createMonitorService({
           });
           clearRefreshRecoveryTimer();
           logger.info({
+            source: reason,
+            dataSource: refreshSource,
+            refreshedAt: refreshAt,
+            weeklyRemainingPercent: dashboard.weeklySummary?.remainingPercent ?? null,
+            fiveHourRemainingPercent: dashboard.summary?.remainingPercent ?? null,
+            isFallback: true
+          }, '[refresh:data]');
+          logger.info({
             sourceLabel: snapshot.sourceLabel ?? 'unknown'
           }, 'using local snapshot after live refresh failure');
         } else {
@@ -668,6 +708,14 @@ export async function createMonitorService({
             };
             refreshSource = 'memory_cache';
             refreshAt = cachedDashboard.refreshedAt ?? now.toISOString();
+            logger.info({
+              source: reason,
+              dataSource: refreshSource,
+              refreshedAt: refreshAt,
+              weeklyRemainingPercent: dashboard.weeklySummary?.remainingPercent ?? null,
+              fiveHourRemainingPercent: dashboard.summary?.remainingPercent ?? null,
+              isFallback: true
+            }, '[refresh:data]');
             refreshStatus = createRefreshStatus({
               ...refreshStatus,
               phase: 'using_snapshot',
@@ -692,6 +740,14 @@ export async function createMonitorService({
             dashboard = buildUnavailableDashboard(preferences, 'codex app-server account/rateLimits/read');
             refreshSource = 'unknown';
             refreshAt = now.toISOString();
+            logger.info({
+              source: reason,
+              dataSource: refreshSource,
+              refreshedAt: refreshAt,
+              weeklyRemainingPercent: null,
+              fiveHourRemainingPercent: null,
+              isFallback: false
+            }, '[refresh:data]');
             refreshStatus = createRefreshStatus({
               ...refreshStatus,
               phase: 'failed',
@@ -720,6 +776,13 @@ export async function createMonitorService({
       };
       maybeNotify(dashboard);
       publishDashboard(dashboard);
+      logger.info({
+        source: reason,
+        dataSource: dashboard.refreshStatus?.dataSource ?? refreshSource,
+        refreshedAt: dashboard.refreshedAt ?? refreshAt,
+        phase: dashboard.refreshStatus?.phase ?? 'success',
+        isFallback: refreshSource === 'local_snapshot' || refreshSource === 'memory_cache'
+      }, '[refresh:state-updated]');
       if (dashboard?.summary) {
         writeDashboardArtifact(dashboard, storageRoot);
       }
@@ -769,6 +832,13 @@ export async function createMonitorService({
         } else {
           publishDashboard(dashboard);
         }
+        logger.info({
+          source: reason,
+          dataSource: dashboard.source?.origin ?? inferDataSource(dashboard),
+          refreshedAt: dashboard.refreshedAt ?? null,
+          phase: dashboard.refreshStatus?.phase ?? 'failed',
+          isFallback: dashboard.refreshStatus?.phase === 'using_snapshot'
+        }, '[refresh:state-updated]');
         recordRefreshDiagnostic({
           reason,
           result: dashboard.summary ? 'fallback' : 'failed',

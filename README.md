@@ -14,6 +14,7 @@ Codex Monitor is a quiet, privacy-first macOS menu bar app for people who use Co
 - After manual refresh completes, the app re-reads the latest dashboard before repainting the UI, so the view stays aligned with the underlying data
 - The tray shows the most recent update time and warns when data is older than 10 minutes
 - The tray also surfaces a lightweight data health view with status and a short reason line
+- Refresh flow logs are kept at the source, data, state, and UI boundary so manual, interval, startup, and resume refreshes can be traced end to end
 - The app defaults to conservative rendering and avoids always-on visual effects that can keep Electron’s GPU usage elevated
 - The history chart is treated as optional and stays disabled by default unless explicitly enabled for debugging
 - When weekly quota is temporarily unavailable, the tray keeps weekly fields as unavailable instead of substituting the 5-hour value
@@ -119,6 +120,7 @@ The fallback snapshot format is intentionally simple:
 - Wake retry sequences stop after the first successful live refresh
 - Failure paths enter backoff and keep the next refresh chain alive
 - In `auto` mode, live quota reads try `wham/usage` first and then the local app-server before they give up to local snapshot data
+- Refresh diagnostics distinguish `manual`, `interval`, `startup`, and `resume` paths so refresh-chain breakpoints are easier to inspect from logs
 - After a long sleep, stale local state is re-anchored to the current 5-hour window
 - Flow advice stays short, local, and non-intrusive
 - Burn-rate analysis is computed locally from quota snapshots only and does not inspect chats, prompts, or code content

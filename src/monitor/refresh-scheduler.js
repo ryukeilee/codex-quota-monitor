@@ -141,7 +141,7 @@ export function createRefreshScheduler({
 
         await triggerRefresh({
           reason,
-          force: reason !== 'timer'
+          force: reason !== 'interval'
         });
       } catch (error) {
         logger.error({
@@ -157,7 +157,7 @@ export function createRefreshScheduler({
     scheduleTimer({
       delayMs,
       schedulerState: 'idle',
-      reason: 'timer',
+      reason: 'interval',
       phase: dashboard?.refreshStatus?.phase ?? 'idle',
       isWakeRetry: false,
       nextRetryAttempt: null
@@ -251,7 +251,7 @@ export function createRefreshScheduler({
 
   function triggerRefresh({
     reason = 'manual',
-    force = reason !== 'timer',
+    force = reason !== 'interval',
     wakeRetryAttempt = null
   } = {}) {
     if (disposed) {

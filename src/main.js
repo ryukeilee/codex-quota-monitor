@@ -198,6 +198,16 @@ function updateTray(dashboard) {
       click: () => app.quit()
     }
   ]));
+
+  logger.info({
+    source: dashboard.refreshStatus?.lastRefreshReason ?? 'unknown',
+    phase: dashboard.refreshStatus?.phase ?? 'idle',
+    dataSource: dashboard.refreshStatus?.dataSource ?? dashboard.source?.origin ?? 'unknown',
+    refreshedAt: dashboard.refreshedAt ?? null,
+    title: menuBarState.title,
+    weeklyRemainingPercent: dashboard.weeklySummary?.remainingPercent ?? null,
+    fiveHourRemainingPercent: dashboard.summary?.remainingPercent ?? null
+  }, '[refresh:ui-updated]');
 }
 
 function showNotification(payload) {
